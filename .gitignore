@@ -13,10 +13,13 @@ venv/
 env/
 
 # IDE
+.nezha/
 .vscode/
 .idea/
 *.swp
 *.swo
+.playwright-cli/
+
 
 # Environment
 configs/.env

@@ -1,0 +1,58 @@
+# config.toml — 非敏感配置
+
+[dingtalk]
+default_table = "clothing"  # 默认使用的表格 key
+
+# 表格 1：服装生图
+[[dingtalk.tables]]
+key = "clothing"
+base_id = "tbl_xxxxxxxx"
+sheet_id = "sheet_xxx"
+prompt_field = "提示词"
+model_field = "生图模型"
+reference_image_field = "素材图"
+result_image_field = "生成图片"
+result_status_field = "生成结果"
+result_time_field = "生成时间"
+
+# 表格 2：海报生图（示例）
+# [[dingtalk.tables]]
+# key = "poster"
+# base_id = "tbl_yyyyyyyy"
+# sheet_id = "sheet_yyy"
+# prompt_field = "Prompt"
+# model_field = "Model"
+# reference_image_field = "Reference"
+# result_image_field = "Output"
+# result_status_field = "Status"
+# result_time_field = "Time"
+
+[server]
+host = "0.0.0.0"
+port = 8030
+log_level = "INFO"
+max_concurrency = 5
+
+[ai]
+default_model = "Nano Banana 2"
+# 所有模型共用中转站，区别仅在于 endpoint 路径
+base_url = "https://api.vectorengine.ai"
+
+[ai.retry]
+initial_delay = 2
+max_retries = 1
+
+[ai.model."Nano Banana Pro"]
+endpoint = "/v1beta/models/gemini-3-pro-image-preview:generateContent"
+model_name = "gemini-3-pro-image-preview"
+provider = "google"
+
+[ai.model."Nano Banana 2"]
+endpoint = "/v1beta/models/gemini-3.1-flash-image-preview:generateContent"
+model_name = "gemini-3.1-flash-image-preview"
+provider = "google"
+
+[ai.model."GPT Image 2"]
+endpoint = "/v1/images/edits"
+model_name = "gpt-image-2"
+provider = "openai"

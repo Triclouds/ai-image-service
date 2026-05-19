@@ -1,71 +1,160 @@
-# 迭代路线图
+# 项目计划
 
-## v0.1 — MVP 最小可行产品
+## 目标
 
-**目标**：打通完整链路 — 钉钉表格点击 → 后端生成 → 回写结果。
+实现钉钉AI表格驱动的图片生成后端服务。
 
-- [ ] 项目骨架搭建（FastAPI 入口、配置管理）
-- [ ] 钉钉 API 客户端（获取/更新多维表格记录、Token管理）
-- [ ] AI 生图引擎抽象层 + DALL-E 3 引擎实现
-- [ ] 生图编排服务（获取记录 → 下载素材 → 生图 → 回写）
-- [ ] API 接口（`POST /api/v1/generate`、鉴权、健康检查）
-- [ ] 钉钉表格创建与自动化规则配置
-- [ ] 端到端验证：模拟钉钉回调完成一次生图
+核心流程：用户点击"生成按钮" → 钉钉自动化触发 → 后端接收请求 → 获取钉钉记录（素材图、提示词、模型）→ 调用 AI 生图 → 回写结果到钉钉表格。
 
 ---
 
-## v0.2 — 多模型支持
+## 一、项目骨架
 
-**目标**：支持 3+ 种 AI 生图模型，满足不同风格需求。
-
-- [ ] Flux.1 Pro 引擎（通过 Replicate/Together API）
-- [ ] Stable Diffusion 引擎（Stability AI API）
-- [ ] 根据表格"生图模型"字段自动路由到对应引擎
-- [ ] 模型参数自定义（尺寸、步数、CFG scale 等）
+- FastAPI 应用入口（main.py）
+- 配置管理（pydantic-settings 从 .env 加载敏感信息 + tomllib 从 config.toml 加载非敏感配置）
+- 日志配置（loguru，带 task_type、record_id 上下文）
+- 项目结构（src/ 下直接放置 main.py、config.py 及 api/、services/、dingtalk/、generator/、models/ 子包）
 
 ---
 
-## v0.3 — 稳定性与监控
+## 二、钉钉 SDK 客户端
 
-**目标**：生产可用的稳定性和可观测性。
+使用 `alibabacloud-dingtalk` SDK（`alibabacloud_dingtalk.notable_1_0` 子模块）。
 
-- [ ] 速率限制（防止并发冲击生图 API）
-- [ ] 任务队列（Redis + Celery，替换 asyncio 后台任务）
-- [ ] 生图任务状态追踪 API（`GET /api/v1/tasks/{task_id}`）
-- [ ] 监控指标（Prometheus metrics）
-- [ ] 告警通知（失败钉钉群消息推送）
-- [ ] 请求日志持久化（SQLite 或 PostgreSQL）
+**配置文件**：
+- `.env`（敏感）：`DINGTALK_APP_KEY`、`DINGTALK_APP_SECRET`、`DINGTALK_OPERATOR_ID`、`API_KEY`、`NANOBANANA_API_KEY`、`GPT_IMAGE_API_KEY`
+- `config.toml`（非敏感）：多套 AI 表格配置（见下方）
+
+**多表格配置方案**：
+
+```toml
+[dingtalk]
+default_table = "clothing"  # 默认使用的表格 key
+
+[[dingtalk.tables]]
+key = "clothing"
+base_id = "tbl_xxx"
+sheet_id = "sheet_xxx"
+# 字段映射（代码中不硬编码任何字段名）
+prompt_field = "提示词"
+model_field = "生图模型"
+reference_image_field = "素材图"
+result_image_field = "生成图片"
+result_status_field = "生成结果"
+result_time_field = "生成时间"
+
+[[dingtalk.tables]]
+key = "poster"
+base_id = "tbl_yyy"
+sheet_id = "sheet_yyy"
+prompt_field = "Prompt"
+model_field = "Model"
+reference_image_field = "Reference"
+result_image_field = "Output"
+result_status_field = "Status"
+result_time_field = "Time"
+```
+
+**说明**：
+- 每个表格通过 `key` 区分，请求时传入 `table_key` 选择（可选，默认使用 `default_table`）
+- 每个表格独立定义字段映射，代码中不硬编码任何字段名
+- `operator_id` 全局一个，在 `.env` 中配置，不区分表格
+- 新增表格只需加配置，不用改代码
+
+**API 端点**：
+
+| 操作 | API | 说明 |
+|------|-----|------|
+| 获取 AccessToken | `POST /v1.0/oauth2/accessToken` | AppKey + AppSecret |
+| 获取记录 | `GET /v1.0/notable/bases/{baseId}/sheets/{sheetIdOrName}/records/{recordId}` | 需要 operatorId |
+| 更新记录 | `PUT /v1.0/notable/bases/{baseId}/sheets/{sheetIdOrName}/records` | 附件格式参考 `docs/sdk_docs/上传附件.md` |
+| 上传附件 | 3步：获取上传信息 → PUT到uploadUrl → 写入记录 | 详见 `docs/sdk_docs/上传附件.md` |
+
+**功能**：
+- **Token 管理**：缓存 + 自动刷新
+- **记录读取**：get_record
+- **记录更新**：update_records
+- **附件上传**：获取上传信息 → PUT上传 → 写入记录（参考 `docs/sdk_docs/上传附件.md`）
+- **素材图下载**：httpx.get() + access token header（参考 `docs/sdk_docs/SDK实现指南.md` 第6节）
+
+关键模块：
+- `dingtalk/client.py` — DingTalkClient 封装所有 API
+- 无 `dingtalk/models.py` — 记录直接用原始 dict 操作（字段名动态，不做静态模型）
 
 ---
 
-## v0.4 — 用户体验增强
+## 三、AI 生图引擎
 
-**目标**：提升协作者的使用体验。
+AIGenerator 统一入口，根据 model 路由到对应 SDK Client。
 
-- [ ] 生成失败时钉钉群消息通知
-- [ ] 生成历史查看（表格内查看过往生成记录）
-- [ ] 批量生成（一次点击，多款号批量生成）
-- [ ] 提示词模版（预设常用风格提示词）
+- **重试机制**：使用 `tenacity` 库，仅对网络异常重试（`httpx.ConnectError`、`httpx.TimeoutException`、`httpx.NetworkError`），各网络调用方法独立添加 `@retry_on_network_error` 装饰器（`DingTalkClient.*`、`AIGenerator.generate()`），`process()` 本身不做重试
+- **并发控制**：Semaphore，max_concurrency = 5（可配置），超出时排队等待（无超时）
+- **图生图**：reference_image bytes 作为输入，素材图必填
+- **输出格式**：统一 PNG
+
+**模型名称映射**（从 config.toml [ai.model.*] 读取，代码不硬编码）：
+
+| 钉钉表格值 | 真实 model_name（传给 SDK） | provider | 中转站 endpoint |
+|------------|----------------------------|----------|-----------------|
+| `Nano Banana Pro` | `gemini-3-pro-image-preview` | google | /v1beta/models/...:generateContent |
+| `Nano Banana 2` | `gemini-3.1-flash-image-preview` | google | /v1beta/models/...:generateContent |
+| `GPT Image 2` | `gpt-image-2` | openai | /v1/images/edits |
+
+所有模型共用中转站 base_url: https://api.vectorengine.ai
+
+关键模块：
+- `generator/__init__.py` — AIGenerator（统一入口）
 
 ---
 
-## v1.0 — 正式发布
+## 四、生图编排服务
 
-**目标**：稳定版本，内部推广。
+参考旧项目的 TaskRunner 设计：
 
-- [ ] 完整文档与使用教程
-- [ ] Docker 部署方案
-- [ ] 压测与性能优化
-- [ ] 管理后台（任务监控、统计看板）
+- 完整流程：获取记录 → 校验字段 → 下载素材图 → 调用AI生图 → 上传结果 → 回写表格
+- **字段校验**：提示词必填、素材图必填，空了回写 `"失败: 提示词不能为空"` / `"失败: 素材图不能为空"`
+- **错误处理**：失败时回写"失败: {str(e)}"，完整 traceback 仅写 loguru 日志
+- **并发控制**：Semaphore 限制最大并发数（默认 5），放置在 GenerationService 层，全局限制，超出时排队等待
+- **重试机制**：不在 process() 层面重试，各网络调用方法（DingTalkClient.*、AIGenerator.generate()）各自通过 @retry_on_network_error 独立处理，仅网络异常重试
+- **日期格式**：生成时间字段写入格式为 `"YYYY-MM-DD HH:mm"` 字符串
+
+关键模块：
+- `services/generation.py` — GenerationService 编排整个流程
 
 ---
 
-## 后续规划（Backlog）
+## 五、API 接口
 
-- [ ] ComfyUI 工作流集成（自部署模型）
-- [ ] 图片后处理（背景去除、水印添加、尺寸适配）
-- [ ] 图生图（以素材图为参考的 img2img）
-- [ ] 多图输出（一次生成多张供选择）
-- [ ] 提示词翻译（中文提示词自动翻译为英文）
-- [ ] A/B 对比（同一条记录用多个模型生成对比）
-- [ ] Web UI 管理端（替代钉钉表格直接操作）
+- `POST /api/v1/generate` — 接收钉钉自动化回调，触发异步生图（返回 202 Accepted）
+- `GET /api/v1/health` — 健康检查（返回 `{"status": "ok", "version": "0.1.0"}`）
+
+**错误码**：
+
+| 状态码 | 场景 |
+|--------|------|
+| 400 | 参数校验失败（缺少 record_id） |
+| 401 | API Key 无效 |
+| 202 Accepted | 任务已接收，后台处理中 |
+
+**错误处理策略**：
+- **同步校验错误**（参数格式、API Key 无效）→ 立即返回 4xx
+- **异步业务错误**（记录不存在、AI 失败、下载失败等）→ 统一回写表格"失败: xxx"，HTTP 始终返回 202 Accepted
+
+---
+
+## 六、端到端验证
+
+- 钉钉表格字段配置说明
+- 自动化规则配置（触发器、HTTP 请求）
+- 本地调试方法（curl 模拟回调）
+
+---
+
+## 执行顺序
+
+1. 项目骨架（config.py、main.py、依赖）
+2. 钉钉 SDK 客户端
+3. AI 生图引擎
+4. 生图编排服务
+5. API 接口
+6. 端到端验证

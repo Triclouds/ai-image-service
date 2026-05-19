@@ -21,10 +21,17 @@ dependencies = [
     "uvicorn[standard]>=0.30.0",
     "httpx>=0.28.0",
     "pydantic>=2.0",
-    "pydantic-settings>=2.0",
+    "pydantic-settings>=2.13",
     "loguru>=0.7.0",
     "Pillow>=10.0",
     "python-multipart>=0.0.9",
+    # 钉钉 SDK
+    "alibabacloud-dingtalk>=2.0.0",
+    # AI 生图 SDK
+    "google-genai>=0.8.0",
+    "openai>=1.0.0",
+    # 重试
+    "tenacity>=8.2.0",
 ]
 
 [project.optional-dependencies]
