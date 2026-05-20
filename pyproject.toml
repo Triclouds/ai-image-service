@@ -1,5 +1,5 @@
 [project]
-name = "ai-gen-image"
+name = "ai-image-service"
 version = "0.1.0"
 description = "钉钉AI表格驱动的图片生成后端服务"
 readme = "CLAUDE.md"
