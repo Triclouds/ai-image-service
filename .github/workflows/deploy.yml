@@ -39,7 +39,7 @@ jobs:
         with:
           context: .
           push: true
-          tags: ghcr.io/${{ env.REPO_OWNER_LOWER }}/ai-gen-image:latest
+          tags: ghcr.io/${{ env.REPO_OWNER_LOWER }}/ai-image-service:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -51,7 +51,7 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           port: ${{ secrets.SERVER_PORT || 22 }}
           source: "docker-compose.yml,configs/config.toml"
-          target: "${{ secrets.SERVER_PROJECT_PATH || '/home/deployer/projects/ai-gen-image' }}"
+          target: "${{ secrets.SERVER_PROJECT_PATH || '/home/deployer/projects/ai-image-service' }}"
           debug: true
           timeout: 30s
 
@@ -63,7 +63,7 @@ jobs:
           password: ${{ secrets.SERVER_PASSWORD }}
           port: ${{ secrets.SERVER_PORT || 22 }}
           script: |
-            cd ${{ secrets.SERVER_PROJECT_PATH || '/home/deployer/projects/ai-gen-image' }}
+            cd ${{ secrets.SERVER_PROJECT_PATH || '/home/deployer/projects/ai-image-service' }}
 
             # 创建或更新 .env 文件
             cat > .env << 'EOF'

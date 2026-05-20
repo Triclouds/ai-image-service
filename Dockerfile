@@ -15,7 +15,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 # ===== 运行阶段 =====
 FROM python:3.11-slim
 
-WORKDIR /opt/ai-gen
+WORKDIR /opt/ai-image-service
 
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1
@@ -26,8 +26,8 @@ COPY --from=builder /usr/local/bin /usr/local/bin
 COPY . .
 
 # 非 root 用户
-RUN groupadd -r appuser && useradd -r -g appuser -d /opt/ai-gen -s /sbin/nologin appuser \
-    && chown -R appuser:appuser /opt/ai-gen
+RUN groupadd -r appuser && useradd -r -g appuser -d /opt/ai-image-service -s /sbin/nologin appuser \
+    && chown -R appuser:appuser /opt/ai-image-service
 
 USER appuser
 

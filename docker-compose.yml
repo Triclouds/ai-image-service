@@ -1,7 +1,7 @@
 services:
-  ai-gen-image:
-    image: ghcr.milu.moe/triclouds/ai-gen-image:latest
-    container_name: ai-gen-image
+  ai-image-service:
+    image: ghcr.milu.moe/triclouds/ai-image-service:latest
+    container_name: ai-image-service
     volumes:
       - ./logs:/opt/ai-gen/logs
     env_file:
