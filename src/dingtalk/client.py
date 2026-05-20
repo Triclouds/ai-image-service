@@ -3,14 +3,19 @@
 封装钉钉 SDK 调用，管理 Token 缓存，支持多表格场景。
 """
 
+import asyncio
 import time
-from typing import Optional
+import traceback
+from urllib.parse import urljoin
 
 import httpx
-from alibabacloud_dingtalk.notable_1_0.client import Client as NotableClient
 from alibabacloud_dingtalk.notable_1_0 import models as notable_models
+from alibabacloud_dingtalk.notable_1_0.client import Client as NotableClient
+from alibabacloud_dingtalk.oauth2_1_0 import models as oauth2_models
+from alibabacloud_dingtalk.oauth2_1_0.client import Client as OAuth2Client
 from alibabacloud_tea_openapi import models as open_api_models
 from alibabacloud_tea_util import models as util_models
+from loguru import logger
 
 from config import Settings, TableConfig
 
@@ -27,29 +32,53 @@ class DingTalkClient:
         self.app_secret = settings.dingtalk_app_secret
         self.operator_id = settings.dingtalk_operator_id
         self.settings = settings
-        self._token: Optional[str] = None
+        self._token: str | None = None
         self._token_expires_at: float = 0
 
         config = open_api_models.Config()
         config.protocol = "https"
         config.region_id = "central"
         self._client = NotableClient(config)
+        self._oauth2_client = OAuth2Client(config)
+
+    def _masked_app_key(self) -> str:
+        """脱敏 app_key，前6位+****+后2位。"""
+        key = self.app_key or ""
+        if len(key) <= 8:
+            return key[:4] + "****" if key else "(empty)"
+        return key[:6] + "****" + key[-2:]
 
     async def _get_access_token(self) -> str:
-        """获取 access_token，带缓存，过期前 5 分钟主动刷新。"""
-        if self._token and time.time() < self._token_expires_at - 300:
-            return self._token
+        """获取 access_token，带缓存，过期前 5 分钟主动刷新。
 
-        async with httpx.AsyncClient() as client:
-            response = await client.post(
-                "https://api.dingtalk.com/v1.0/oauth2/accessToken",
-                json={"appKey": self.app_key, "appSecret": self.app_secret},
-                headers={"Content-Type": "application/json"},
-            )
-            result = response.json()
-            self._token = result["accessToken"]
-            self._token_expires_at = time.time() + result.get("expireIn", 7200)
+        使用 alibabacloud_dingtalk.oauth2_1_0 SDK 获取 token，
+        异常时 err.code / err.message 提供详细失败原因。
+        """
+        token = self._token
+        if token and time.time() < self._token_expires_at - 300:
+            return token
+
+        masked_key = self._masked_app_key()
+        logger.info(f"钉钉 Token 过期或不存在，开始刷新 app_key={masked_key}")
+
+        request = oauth2_models.GetAccessTokenRequest(
+            app_key=self.app_key,
+            app_secret=self.app_secret,
+        )
+        try:
+            response = await self._oauth2_client.get_access_token_async(request)
+            self._token = response.body.access_token
+            self._token_expires_at = time.time() + response.body.expire_in
+            logger.info(f"钉钉 Token 刷新成功 app_key={masked_key} expires_in={response.body.expire_in}")
             return self._token
+        except Exception as e:
+            code = getattr(e, "code", "unknown")
+            message = getattr(e, "message", str(e))
+            tb = traceback.format_exc()
+            logger.error(f"钉钉 Token 刷新失败: [{code}] {message}\n{tb}")
+            raise RuntimeError(
+                f"钉钉 Token 刷新失败: [{code}] {message}"
+            ) from e
 
     def _headers(self, token: str) -> notable_models.GetRecordHeaders:
         """构造带 token 的请求头。"""
@@ -68,8 +97,9 @@ class DingTalkClient:
             except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
                 last_error = e
                 if attempt < max_retries:
-                    import asyncio
                     await asyncio.sleep(initial_delay)
+        # last_error 一定不为 None，循环只有抛出异常时才会到此处
+        assert last_error is not None
         raise last_error
 
     async def get_record(self, table_config: TableConfig, record_id: str) -> dict:
@@ -86,13 +116,11 @@ class DingTalkClient:
                 headers=self._headers(token),
                 runtime=util_models.RuntimeOptions(),
             )
-            return response.body.to_dict() if hasattr(response, "body") else {}
+            return response.body.to_map() if hasattr(response, "body") else {}
 
         return await self._retry_on_network_error(_do_get)
 
-    async def update_record(
-        self, table_config: TableConfig, record_id: str, fields: dict
-    ) -> None:
+    async def update_record(self, table_config: TableConfig, record_id: str, fields: dict) -> None:
         """更新表格记录。"""
 
         async def _do_update():
@@ -175,7 +203,7 @@ class DingTalkClient:
 
         async def _do_download():
             token = await self._get_access_token()
-            full_url = f"https://api.dingtalk.com{file_url}"
+            full_url = urljoin("https://api.dingtalk.com", file_url)
 
             async with httpx.AsyncClient() as client:
                 response = await client.get(

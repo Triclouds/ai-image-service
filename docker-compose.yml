@@ -1,0 +1,32 @@
+services:
+  ai-gen-image:
+    image: ghcr.milu.moe/triclouds/ai-gen-image:latest
+    container_name: ai-gen-image
+    volumes:
+      - ./logs:/opt/ai-gen/logs
+    env_file:
+      - .env
+    expose:
+      - "8030"
+    restart: unless-stopped
+    networks:
+      - 1panel-network
+    # 资源限制
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "2.0"
+        reservations:
+          memory: 256M
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8030/api/v1/health')"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+networks:
+  1panel-network:
+    external: true

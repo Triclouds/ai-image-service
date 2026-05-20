@@ -27,8 +27,8 @@ pip install -e ".[dev]"
 
 ```bash
 # 从模板创建环境变量文件
-cp configs/.env.example configs/.env
-# 编辑 configs/.env，填入真实配置
+copy configs\.env.example .env
+# 编辑 .env，填入真实配置
 ```
 
 ### 1.4 钉钉应用配置
@@ -273,7 +273,7 @@ async def test_process_success():
 ## 6. 环境变量模板
 
 ```ini
-# configs/.env
+# .env
 
 # ========== 钉钉配置 ==========
 DINGTALK_APP_KEY=dingxxxxxxxxxxxx
@@ -289,10 +289,18 @@ AI_BASE_URL=https://api.vectorengine.ai
 
 # NanoBanana 系列（Google SDK）
 # NanoBanana Pro 和 NanoBanana 2 共用同一个 key
-NANOBANANA_API_KEY=your-nanobanana-key
+# 每个表格在 config.toml 中指定使用哪个环境变量
+# 卓智
+ZHUOZHI_NANOBANANA_API_KEY=your-zhuozhi-nanobanana-key
+ZHUOZHI_GPT_IMAGE_API_KEY=your-zhuozhi-gpt-image-key
 
-# GPT-Image 系列（OpenAI SDK）
-GPT_IMAGE_API_KEY=your-gpt-image-key
+# AHMI
+AHMI_NANOBANANA_API_KEY=your-ahmi-nanobanana-key
+AHMI_GPT_IMAGE_API_KEY=your-ahmi-gpt-image-key
+
+# 华普
+HUAPU_NANOBANANA_API_KEY=your-huapu-nanobanana-key
+HUAPU_GPT_IMAGE_API_KEY=your-huapu-gpt-image-key
 
 # ========== 默认配置 ==========
 DEFAULT_MODEL=Nano Banana 2

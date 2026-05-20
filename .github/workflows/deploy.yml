@@ -1,0 +1,85 @@
+name: 构建并部署
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: 检出代码
+        uses: actions/checkout@v4
+
+      - name: 设置小写仓库名
+        run: echo "REPO_OWNER_LOWER=$(echo '${{ github.repository_owner }}' | tr '[:upper:]' '[:lower:]')" >> $GITHUB_ENV
+
+      - name: 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+        with:
+          driver: docker-container
+
+      - name: 登录 GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: 构建并推送镜像
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/${{ env.REPO_OWNER_LOWER }}/ai-gen-image:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: 同步配置文件到服务器
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          source: "docker-compose.yml,configs/config.toml"
+          target: "${{ secrets.SERVER_PROJECT_PATH || '/home/deployer/projects/ai-gen-image' }}"
+          debug: true
+          timeout: 30s
+
+      - name: 部署到服务器
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: ${{ secrets.SERVER_USER }}
+          password: ${{ secrets.SERVER_PASSWORD }}
+          port: ${{ secrets.SERVER_PORT || 22 }}
+          script: |
+            cd ${{ secrets.SERVER_PROJECT_PATH || '/home/deployer/projects/ai-gen-image' }}
+
+            # 创建或更新 .env 文件
+            cat > .env << 'EOF'
+            DINGTALK_APP_KEY=${{ secrets.DINGTALK_APP_KEY }}
+            DINGTALK_APP_SECRET=${{ secrets.DINGTALK_APP_SECRET }}
+            DINGTALK_OPERATOR_ID=${{ secrets.DINGTALK_OPERATOR_ID }}
+            API_KEY=${{ secrets.API_KEY }}
+            NANOBANANA_API_KEY=${{ secrets.NANOBANANA_API_KEY }}
+            GPT_IMAGE_API_KEY=${{ secrets.GPT_IMAGE_API_KEY }}
+            EOF
+
+            chmod 600 .env
+
+            # 登录镜像代理
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.milu.moe -u ${{ env.REPO_OWNER_LOWER }} --password-stdin > /dev/null 2>&1 || true
+
+            docker compose pull
+            docker compose up -d
+            docker image prune --filter 'until=24h' -f

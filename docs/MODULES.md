@@ -14,7 +14,8 @@ src/
 ├── dingtalk/           # 钉钉集成层 → 封装钉钉 Python SDK
 │   └── client.py       #   DingTalkClient（记录用原始 dict 操作）
 ├── generator/          # AI生图引擎层 → 按 model 分派到 Google / OpenAI SDK
-│   └── __init__.py     #   AIGenerator（统一入口）
+│   ├── __init__.py     #   包入口，re-export AIGenerator
+│   └── engine.py       #   AIGenerator（统一入口）
 └── models/             # 通用数据模型
     ├── request.py      #   GenerateRequest
     └── response.py     #   TaskResponse
@@ -87,11 +88,11 @@ class _EnvSettings(BaseSettings):
     dingtalk_app_secret: str
     dingtalk_operator_id: str
     api_key: str
-    nanobanana_api_key: str = ""
-    gpt_image_api_key: str = ""
+    zhuozhi_nanobanana_api_key: str = ""
+    zhuozhi_gpt_image_api_key: str = ""
 
     model_config = SettingsConfigDict(
-        env_file="configs/.env",
+        env_file=".env",
         extra="ignore",
     )
 
@@ -111,8 +112,8 @@ class Settings(BaseSettings):
     dingtalk_app_secret: str = ""
     dingtalk_operator_id: str = ""
     api_key: str = ""
-    nanobanana_api_key: str = ""
-    gpt_image_api_key: str = ""
+    zhuozhi_nanobanana_api_key: str = ""
+    zhuozhi_gpt_image_api_key: str = ""
 
     # 非敏感字段（由 __init__ 从 config.toml 填充）
     server: ServerConfig = ServerConfig()
@@ -207,7 +208,7 @@ class Settings(BaseSettings):
 | 优先级 | 来源 | 说明 |
 |--------|------|------|
 | 1 (最高) | 系统环境变量 | `export AI_BASE_URL=...` 覆盖所有下级来源 |
-| 2 | `configs/.env` | pydantic-settings 加载，覆盖 config.toml 同名字段 |
+| 2 | `.env` | pydantic-settings 加载，覆盖 config.toml 同名字段 |
 | 3 | `configs/config.toml` | tomllib 加载非敏感配置（字段映射、endpoint 等） |
 | 4 (最低) | 代码默认值 | `host = "0.0.0.0"` 等 class 内联默认值 |
 
@@ -391,20 +392,13 @@ class AIGenerator:
 
     def __init__(self, settings: Settings):
         self.settings = settings
-        self.nano_client = genai.AsyncClient(
-            api_key=settings.nanobanana_api_key,
-            http_options={"base_url": f"{settings.ai.base_url}/v1beta"}
-        )
-        self.gpt_client = AsyncOpenAI(
-            api_key=settings.gpt_image_api_key,
-            base_url=f"{settings.ai.base_url}/v1"
-        )
 
     async def generate(
         self,
         model: str,
         prompt: str,
         reference_image: bytes | None = None,
+        table_config: TableConfig | None = None,
     ) -> bytes:
         """根据 model 参数（钉钉表格值）分派到对应 SDK，返回统一 PNG 格式字节流。
 
@@ -623,7 +617,7 @@ class DingTalkClient:
 ```
 
 ```python
-# generator/__init__.py
+# generator/engine.py
 class AIGenerator:
     @retry_on_network_error
     async def generate(self, ...): ...

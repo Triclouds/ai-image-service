@@ -19,7 +19,7 @@ env/
 *.swp
 *.swo
 .playwright-cli/
-
+.mindfs/
 
 # Environment
 configs/.env

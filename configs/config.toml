@@ -1,13 +1,15 @@
 # config.toml — 非敏感配置
 
 [dingtalk]
-default_table = "clothing"  # 默认使用的表格 key
+default_table = "zhozhi-base"  # 默认使用的表格 key
 
 # 表格 1：服装生图
 [[dingtalk.tables]]
-key = "clothing"
-base_id = "tbl_xxxxxxxx"
-sheet_id = "sheet_xxx"
+key = "zhozhi-base"
+base_id = "ZgpG2NdyVX6bMqMaTGgr2nLG8MwvDqPk"
+sheet_id = "hERWDMS"
+gpt_image_api_key_env = "ZHUOZHI_GPT_IMAGE_API_KEY"
+nanobanana_api_key_env = "ZHUOZHI_NANOBANANA_API_KEY"
 prompt_field = "提示词"
 model_field = "生图模型"
 reference_image_field = "素材图"
@@ -20,6 +22,8 @@ result_time_field = "生成时间"
 # key = "poster"
 # base_id = "tbl_yyyyyyyy"
 # sheet_id = "sheet_yyy"
+# gpt_image_api_key_env = "ZHUOZHI_GPT_IMAGE_API_KEY"
+# nanobanana_api_key_env = "ZHUOZHI_NANOBANANA_API_KEY"
 # prompt_field = "Prompt"
 # model_field = "Model"
 # reference_image_field = "Reference"
@@ -35,24 +39,22 @@ max_concurrency = 5
 
 [ai]
 default_model = "Nano Banana 2"
-# 所有模型共用中转站，区别仅在于 endpoint 路径
-base_url = "https://api.vectorengine.ai"
 
 [ai.retry]
 initial_delay = 2
 max_retries = 1
 
 [ai.model."Nano Banana Pro"]
-endpoint = "/v1beta/models/gemini-3-pro-image-preview:generateContent"
+base_url = "https://api.vectorengine.ai"
 model_name = "gemini-3-pro-image-preview"
 provider = "google"
 
 [ai.model."Nano Banana 2"]
-endpoint = "/v1beta/models/gemini-3.1-flash-image-preview:generateContent"
+base_url = "https://api.vectorengine.ai"
 model_name = "gemini-3.1-flash-image-preview"
 provider = "google"
 
 [ai.model."GPT Image 2"]
-endpoint = "/v1/images/edits"
+base_url = "https://api.vectorengine.ai/v1"
 model_name = "gpt-image-2"
 provider = "openai"

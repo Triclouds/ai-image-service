@@ -1,22 +1,28 @@
 """API 路由模块。"""
 
-from datetime import datetime, timezone
+from datetime import datetime
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
+from loguru import logger
 
-from models import GenerateRequest, TaskResponse, HealthResponse
-from services.generation import GenerationService
 from api.deps import get_generation_service, get_settings
+from models import GenerateRequest, HealthResponse, TaskResponse
+from services.generation import GenerationService
 
 router = APIRouter()
 
 
-async def verify_api_key(x_api_key: str = Header(..., alias="X-Api-Key")) -> str:
+async def verify_api_key(authorization: str | None = Header(None, alias="Authorization")) -> str:
     """验证 API Key。"""
     settings = get_settings()
-    if x_api_key != settings.api_key:
+    if authorization is None:
+        raise HTTPException(status_code=401, detail="Missing API key")
+    if not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Invalid API key")
-    return x_api_key
+    api_key = authorization.removeprefix("Bearer ")
+    if api_key != settings.api_key:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    return api_key
 
 
 @router.post(
@@ -32,10 +38,11 @@ async def verify_api_key(x_api_key: str = Header(..., alias="X-Api-Key")) -> str
 async def trigger_generation(
     req: GenerateRequest,
     background_tasks: BackgroundTasks,
-    service: GenerationService = Depends(get_generation_service),
-    _api_key: str = Depends(verify_api_key),
+    service: GenerationService = Depends(get_generation_service),  # noqa: B008
+    _api_key: str = Depends(verify_api_key),  # noqa: B008
 ) -> TaskResponse:
     """接收钉钉自动化回调，触发异步生图流程。"""
+    logger.info("收到 generate 请求", record_id=req.record_id, table_key=req.table_key)
     background_tasks.add_task(service.process, req.record_id, req.table_key)
     return TaskResponse(
         status="accepted",

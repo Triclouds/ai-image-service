@@ -22,7 +22,7 @@
 使用 `alibabacloud-dingtalk` SDK（`alibabacloud_dingtalk.notable_1_0` 子模块）。
 
 **配置文件**：
-- `.env`（敏感）：`DINGTALK_APP_KEY`、`DINGTALK_APP_SECRET`、`DINGTALK_OPERATOR_ID`、`API_KEY`、`NANOBANANA_API_KEY`、`GPT_IMAGE_API_KEY`
+- `.env`（敏感）：`DINGTALK_APP_KEY`、`DINGTALK_APP_SECRET`、`DINGTALK_OPERATOR_ID`、`API_KEY`、`ZHUOZHI_NANOBANANA_API_KEY`、`ZHUOZHI_GPT_IMAGE_API_KEY`、`AHMI_NANOBANANA_API_KEY`、`AHMI_GPT_IMAGE_API_KEY`、`HUAPU_NANOBANANA_API_KEY`、`HUAPU_GPT_IMAGE_API_KEY`
 - `config.toml`（非敏感）：多套 AI 表格配置（见下方）
 
 **多表格配置方案**：
@@ -103,7 +103,7 @@ AIGenerator 统一入口，根据 model 路由到对应 SDK Client。
 所有模型共用中转站 base_url: https://api.vectorengine.ai
 
 关键模块：
-- `generator/__init__.py` — AIGenerator（统一入口）
+- `generator/engine.py` — AIGenerator（统一入口）
 
 ---
 

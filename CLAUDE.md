@@ -40,7 +40,8 @@ ai_gen_image/
 ├── dingtalk/
 │   └── client.py        # 钉钉 SDK 客户端 (DingTalkClient) — 记录用原始 dict 操作
 ├── generator/
-│   └── __init__.py     # AI 生图引擎统一入口 (AIGenerator)
+│   ├── __init__.py     # 包入口，re-export AIGenerator
+│   └── engine.py       # AI 生图引擎统一入口 (AIGenerator)
 └── models/
     ├── request.py       # API 请求模型
     └── response.py      # API 响应模型
@@ -82,7 +83,7 @@ chore(deps): 更新httpx版本
 
 ### 配置管理
 
-敏感配置通过环境变量注入（`configs/.env`），非敏感配置放在 `configs/config.toml`，禁止硬编码。
+敏感配置通过环境变量注入（`.env`），非敏感配置放在 `configs/config.toml`，禁止硬编码。
 
 ## 文档索引
 
