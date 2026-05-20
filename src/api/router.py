@@ -28,9 +28,9 @@ async def verify_api_key(authorization: str | None = Header(None, alias="Authori
 @router.post(
     "/api/v1/generate",
     response_model=TaskResponse,
-    status_code=202,
+    status_code=200,
     responses={
-        202: {"description": "任务已接收，后台处理中"},
+        200: {"description": "任务已接收，后台处理中"},
         400: {"description": "参数校验失败"},
         401: {"description": "API Key 无效"},
     },

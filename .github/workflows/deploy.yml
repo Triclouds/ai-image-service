@@ -71,8 +71,8 @@ jobs:
             DINGTALK_APP_SECRET=${{ secrets.DINGTALK_APP_SECRET }}
             DINGTALK_OPERATOR_ID=${{ secrets.DINGTALK_OPERATOR_ID }}
             API_KEY=${{ secrets.API_KEY }}
-            NANOBANANA_API_KEY=${{ secrets.NANOBANANA_API_KEY }}
-            GPT_IMAGE_API_KEY=${{ secrets.GPT_IMAGE_API_KEY }}
+            ZHUOZHI_NANOBANANA_API_KEY=${{ secrets.NANOBANANA_API_KEY }}
+            ZHUOZHI_GPT_IMAGE_API_KEY=${{ secrets.GPT_IMAGE_API_KEY }}
             EOF
 
             chmod 600 .env

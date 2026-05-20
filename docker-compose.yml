@@ -3,7 +3,7 @@ services:
     image: ghcr.milu.moe/triclouds/ai-image-service:latest
     container_name: ai-image-service
     volumes:
-      - ./logs:/opt/ai-gen/logs
+      - ./logs:/opt/ai-image-service/logs
     env_file:
       - .env
     expose:
