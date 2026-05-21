@@ -80,8 +80,8 @@ jobs:
             # 登录镜像代理
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.milu.moe -u ${{ env.REPO_OWNER_LOWER }} --password-stdin > /dev/null 2>&1 || true
 
-            # 创建 logs 目录并设置正确权限
-            mkdir -p logs && chown -R $USER:$USER logs
+            # 创建 logs 目录并设置写权限
+            mkdir -p logs && chmod 777 logs
 
             docker compose pull
             docker compose up -d
