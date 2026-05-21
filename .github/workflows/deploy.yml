@@ -77,6 +77,9 @@ jobs:
 
             chmod 600 .env
 
+            # 确保 logs 目录存在且容器内 appuser 可写（bind mount 会覆盖容器内 chown 的目录）
+            mkdir -p logs && chmod 777 logs
+
             # 登录镜像代理
             echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.milu.moe -u ${{ env.REPO_OWNER_LOWER }} --password-stdin > /dev/null 2>&1 || true
 
