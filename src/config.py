@@ -61,8 +61,8 @@ class ServerConfig(BaseModel):
 class RetryConfig(BaseModel):
     """重试配置，对应 [ai.retry]。"""
 
-    initial_delay: int = 2
-    max_retries: int = 1
+    initial_delay: int = 3
+    max_retries: int = 2
 
 
 class AiConfig(BaseModel):

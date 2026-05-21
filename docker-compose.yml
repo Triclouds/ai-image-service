@@ -6,6 +6,8 @@ services:
       - ./logs:/opt/ai-image-service/logs
     env_file:
       - .env
+    environment:
+      - TZ=Asia/Shanghai
     expose:
       - "8030"
     restart: unless-stopped

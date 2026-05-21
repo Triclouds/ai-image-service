@@ -156,7 +156,7 @@ class DingTalkClient:
             token = await self._get_access_token()
 
             # Step 1: 获取上传信息
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=60) as client:
                 resp = await client.post(
                     f"https://api.dingtalk.com/v1.0/doc/docs/resources/{table_config.base_id}/uploadInfos/query",
                     json={
@@ -181,7 +181,7 @@ class DingTalkClient:
                 resource_url = result["resourceUrl"]
 
             # Step 2: PUT 上传文件到 OSS
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=60) as client:
                 await client.put(
                     upload_url,
                     content=image_bytes,
@@ -205,7 +205,7 @@ class DingTalkClient:
             token = await self._get_access_token()
             full_url = urljoin("https://api.dingtalk.com", file_url)
 
-            async with httpx.AsyncClient() as client:
+            async with httpx.AsyncClient(timeout=60) as client:
                 response = await client.get(
                     full_url,
                     headers={"x-acs-dingtalk-access-token": token},

@@ -29,12 +29,12 @@ def setup_logging(settings: Settings) -> None:
     logger.remove()
 
     # 设置 extra 默认值，避免非请求日志（如启动日志）中 {extra[request_id]} 抛 KeyError
-    logger.configure(patcher=lambda record: record["extra"].setdefault("request_id", "-"))
+    logger.configure(patcher=_enrich_record)
 
     # ── 控制台 ──
     # 使用静态格式字符串，避免 enqueue=True 与 callable format 冲突导致 KeyError
     console_fmt = (
-        "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+        "<green>{time:YYYY-MM-DD HH:mm:ss.SSS!Asia/Shanghai}</green> | "
         "<level>{level: <8}</level> | "
         "<cyan>{extra[request_id]: <8}</cyan> | "
         "<level>{message}</level>"
@@ -50,7 +50,7 @@ def setup_logging(settings: Settings) -> None:
 
     # ── 文件（全部日志）──
     file_fmt = (
-        "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | "
+        "{time:YYYY-MM-DD HH:mm:ss.SSS!Asia/Shanghai} | {level: <8} | "
         "{extra[request_id]: <8} | {message}"
     )
 
@@ -79,6 +79,20 @@ def setup_logging(settings: Settings) -> None:
     _patch_logging(log_level)
 
     logger.info("日志系统初始化完成", log_level=log_level, log_dir=str(log_dir))
+
+
+def _enrich_record(record) -> None:
+    """为日志记录补充默认值，并将 extra 字段追加到 message 使其可见。
+
+    所有 logger.info("msg", key=val) 传入的额外参数都位于 record["extra"]
+    中，但 loguru 的格式串不会自动渲染它们。这里在格式化前将它们追加到 message 尾部，
+    确保控制台和文件日志都能看到这些数据。
+    """
+    record["extra"].setdefault("request_id", "-")
+    extras = {k: v for k, v in record["extra"].items() if k != "request_id"}
+    if extras:
+        extra_str = " ".join(f"{k}={v}" for k, v in extras.items())
+        record["message"] += f" | {extra_str}"
 
 
 def _patch_logging(level: str) -> None:
