@@ -61,18 +61,14 @@ class AIGenerator:
             model: 模型名称（如 "Nano Banana 2"）
             prompt: 生图提示词
             reference_image: 素材图字节（可选）
-            table_config: 表格配置，用于获取对应的 API Key 环境变量名。必填，缺失将导致无法获取 API Key。
+            table_config: 表格配置，通过 image_api_key_env 字段获取 AI 图片 API Key 环境变量名。必填。
         """
         if table_config is None:
             raise ValueError("table_config is required to resolve API key")
 
         async def _do_generate():
             model_cfg = self.settings.get_model(model)
-            api_key = self.settings.get_api_key(
-                table_config.nanobanana_api_key_env
-                if model_cfg.provider == "google"
-                else table_config.gpt_image_api_key_env
-            )
+            api_key = self.settings.get_api_key(table_config.image_api_key_env)
             logger.info(
                 "AI 生图路由",
                 model=model,
@@ -114,6 +110,8 @@ class AIGenerator:
         client = AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
+            timeout=httpx.Timeout(300.0, connect=30.0),
+            max_retries=0,
         )
         response = await client.images.edit(
             model=model_name,

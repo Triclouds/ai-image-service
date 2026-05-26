@@ -31,8 +31,7 @@ class TableConfig(BaseModel):
     key: str
     base_id: str
     sheet_id: str
-    gpt_image_api_key_env: str  # 必填，指定使用的 GPT Image API Key 环境变量名
-    nanobanana_api_key_env: str  # 必填，指定使用的 NanoBanana API Key 环境变量名
+    image_api_key_env: str  # 必填，指定使用的 AI 图片 API Key 环境变量名
     prompt_field: str = "提示词"
     model_field: str = "生图模型"
     reference_image_field: str = "素材图"

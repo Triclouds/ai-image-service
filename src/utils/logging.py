@@ -34,7 +34,7 @@ def setup_logging(settings: Settings) -> None:
     # ── 控制台 ──
     # 使用静态格式字符串，避免 enqueue=True 与 callable format 冲突导致 KeyError
     console_fmt = (
-        "<green>{time:YYYY-MM-DD HH:mm:ss.SSS!Asia/Shanghai}</green> | "
+        "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
         "<level>{level: <8}</level> | "
         "<cyan>{extra[request_id]: <8}</cyan> | "
         "<level>{message}</level>"
@@ -50,7 +50,7 @@ def setup_logging(settings: Settings) -> None:
 
     # ── 文件（全部日志）──
     file_fmt = (
-        "{time:YYYY-MM-DD HH:mm:ss.SSS!Asia/Shanghai} | {level: <8} | "
+        "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | "
         "{extra[request_id]: <8} | {message}"
     )
 

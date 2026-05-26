@@ -80,13 +80,10 @@ DINGTALK_OPERATOR_ID=operator_union_id
 # API 鉴权
 API_KEY=your-secret-api-key
 
-# AI 模型 Key（每个表格在 config.toml 中指定使用的变量名）
-ZHUOZHI_NANOBANANA_API_KEY=your-zhuozhi-nanobanana-key
-ZHUOZHI_GPT_IMAGE_API_KEY=your-zhuozhi-gpt-image-key
-AHMI_NANOBANANA_API_KEY=your-ahmi-nanobanana-key
-AHMI_GPT_IMAGE_API_KEY=your-ahmi-gpt-image-key
-HUAPU_NANOBANANA_API_KEY=your-huapu-nanobanana-key
-HUAPU_GPT_IMAGE_API_KEY=your-huapu-gpt-image-key
+# AI 模型 Key（每个表格在 config.toml 中通过 image_api_key_env 指定）
+ZHUOZHI_IMAGE_API_KEY=your-zhuozhi-image-key
+AHMI_IMAGE_API_KEY=your-ahmi-image-key
+HUAPU_IMAGE_API_KEY=your-huapu-image-key
 ```
 
 ### 3.2 非敏感配置（config.toml）
@@ -102,8 +99,7 @@ default_table = "clothing"
 key = "clothing"
 base_id = "tbl_xxxxxxxx"
 sheet_id = "sheet_xxx"
-gpt_image_api_key_env = "ZHUOZHI_GPT_IMAGE_API_KEY"
-nanobanana_api_key_env = "ZHUOZHI_NANOBANANA_API_KEY"
+image_api_key_env = "ZHUOZHI_IMAGE_API_KEY"
 prompt_field = "提示词"
 model_field = "生图模型"
 reference_image_field = "素材图"
@@ -220,10 +216,7 @@ GET /api/v1/health
 | `DINGTALK_OPERATOR_ID` | .env | 操作人 unionId |
 | `API_KEY` | .env | API 鉴权 Key |
 | `AI_BASE_URL` | .env/.toml | AI 模型中转站地址，所有模型共用 |
-| `ZHUOZHI_NANOBANANA_API_KEY` | .env | 卓智 NanoBanana API Key |
-| `ZHUOZHI_GPT_IMAGE_API_KEY` | .env | 卓智 GPT Image API Key |
-| `AHMI_NANOBANANA_API_KEY` | .env | AHMI NanoBanana API Key |
-| `AHMI_GPT_IMAGE_API_KEY` | .env | AHMI GPT Image API Key |
-| `HUAPU_NANOBANANA_API_KEY` | .env | 华普 NanoBanana API Key |
-| `HUAPU_GPT_IMAGE_API_KEY` | .env | 华普 GPT Image API Key |
+| `ZHUOZHI_IMAGE_API_KEY` | .env | 卓智 AI 图片 API Key |
+| `AHMI_IMAGE_API_KEY` | .env | AHMI AI 图片 API Key |
+| `HUAPU_IMAGE_API_KEY` | .env | 华普 AI 图片 API Key |
 | `CONFIG_PATH` | .env | 配置文件路径，默认 `configs/config.toml` |

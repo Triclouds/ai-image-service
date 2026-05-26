@@ -1,15 +1,14 @@
 # config.toml — 非敏感配置
 
 [dingtalk]
-default_table = "zhozhi-base"  # 默认使用的表格 key
+default_table = "zhuozhi-base"  # 默认使用的表格 key
 
-# 表格 1：服装生图
+# 表格 1：卓芝基础生图
 [[dingtalk.tables]]
-key = "zhozhi-base"
+key = "zhuozhi-base"
 base_id = "ZgpG2NdyVX6bMqMaTGgr2nLG8MwvDqPk"
 sheet_id = "hERWDMS"
-gpt_image_api_key_env = "ZHUOZHI_GPT_IMAGE_API_KEY"
-nanobanana_api_key_env = "ZHUOZHI_NANOBANANA_API_KEY"
+image_api_key_env = "ZHUOZHI_IMAGE_API_KEY"
 prompt_field = "提示词"
 model_field = "生图模型"
 reference_image_field = "素材图"
@@ -17,19 +16,31 @@ result_image_field = "生成图片"
 result_status_field = "生成结果"
 result_time_field = "生成时间"
 
-# 表格 2：海报生图（示例）
-# [[dingtalk.tables]]
-# key = "poster"
-# base_id = "tbl_yyyyyyyy"
-# sheet_id = "sheet_yyy"
-# gpt_image_api_key_env = "ZHUOZHI_GPT_IMAGE_API_KEY"
-# nanobanana_api_key_env = "ZHUOZHI_NANOBANANA_API_KEY"
-# prompt_field = "Prompt"
-# model_field = "Model"
-# reference_image_field = "Reference"
-# result_image_field = "Output"
-# result_status_field = "Status"
-# result_time_field = "Time"
+# 表格 2：画朴基础生图
+[[dingtalk.tables]]
+key = "huapu-base"
+base_id = "qnYMoO1rWxnLBYBbSzQ1KEQBJ47Z3je9"
+sheet_id = "hERWDMS"
+image_api_key_env = "HUAPU_IMAGE_API_KEY"
+prompt_field = "提示词"
+model_field = "生图模型"
+reference_image_field = "素材图"
+result_image_field = "生成图片"
+result_status_field = "生成结果"
+result_time_field = "生成时间"
+
+# 表格 3：AHMI基础生图
+[[dingtalk.tables]]
+key = "ahmi-base"
+base_id = "YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb"
+sheet_id = "hERWDMS"
+image_api_key_env = "AHMI_IMAGE_API_KEY"
+prompt_field = "提示词"
+model_field = "生图模型"
+reference_image_field = "素材图"
+result_image_field = "生成图片"
+result_status_field = "生成结果"
+result_time_field = "生成时间"
 
 [server]
 host = "0.0.0.0"

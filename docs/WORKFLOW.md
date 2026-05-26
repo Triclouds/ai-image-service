@@ -287,20 +287,15 @@ API_KEY=your-secret-api-key
 # 所有模型共用同一个中转站 base_url
 AI_BASE_URL=https://api.vectorengine.ai
 
-# NanoBanana 系列（Google SDK）
-# NanoBanana Pro 和 NanoBanana 2 共用同一个 key
-# 每个表格在 config.toml 中指定使用哪个环境变量
+# AI 图片模型 Key（每个表格在 config.toml 中通过 image_api_key_env 指定）
 # 卓智
-ZHUOZHI_NANOBANANA_API_KEY=your-zhuozhi-nanobanana-key
-ZHUOZHI_GPT_IMAGE_API_KEY=your-zhuozhi-gpt-image-key
+ZHUOZHI_IMAGE_API_KEY=your-zhuozhi-image-key
 
 # AHMI
-AHMI_NANOBANANA_API_KEY=your-ahmi-nanobanana-key
-AHMI_GPT_IMAGE_API_KEY=your-ahmi-gpt-image-key
+AHMI_IMAGE_API_KEY=your-ahmi-image-key
 
 # 华普
-HUAPU_NANOBANANA_API_KEY=your-huapu-nanobanana-key
-HUAPU_GPT_IMAGE_API_KEY=your-huapu-gpt-image-key
+HUAPU_IMAGE_API_KEY=your-huapu-image-key
 
 # ========== 默认配置 ==========
 DEFAULT_MODEL=Nano Banana 2
