@@ -15,6 +15,8 @@ from alibabacloud_dingtalk.oauth2_1_0 import models as oauth2_models
 from alibabacloud_dingtalk.oauth2_1_0.client import Client as OAuth2Client
 from alibabacloud_tea_openapi import models as open_api_models
 from alibabacloud_tea_util import models as util_models
+from alibabacloud_dingtalk.doc_1_0.client import Client as DocClient
+from alibabacloud_dingtalk.doc_1_0 import models as doc_models
 from loguru import logger
 
 from config import Settings, TableConfig
@@ -40,6 +42,7 @@ class DingTalkClient:
         config.region_id = "central"
         self._client = NotableClient(config)
         self._oauth2_client = OAuth2Client(config)
+        self._doc_client = DocClient(config)
 
     def _masked_app_key(self) -> str:
         """脱敏 app_key，前6位+****+后2位。"""
@@ -155,30 +158,31 @@ class DingTalkClient:
         async def _do_upload():
             token = await self._get_access_token()
 
-            # Step 1: 获取上传信息
-            async with httpx.AsyncClient(timeout=60) as client:
-                resp = await client.post(
-                    f"https://api.dingtalk.com/v1.0/doc/docs/resources/{table_config.base_id}/uploadInfos/query",
-                    json={
-                        "size": file_size,
-                        "mediaType": media_type,
-                        "resourceName": filename,
-                    },
-                    headers={
-                        "Content-Type": "application/json",
-                        "x-acs-dingtalk-access-token": token,
-                    },
-                    params={"operatorId": self.operator_id},
-                )
-                upload_info = resp.json()
+            # Step 1: 获取上传信息（使用 Doc SDK）
+            headers = doc_models.GetResourceUploadInfoHeaders(
+                x_acs_dingtalk_access_token=token,
+            )
+            request = doc_models.GetResourceUploadInfoRequest(
+                operator_id=self.operator_id,
+                size=file_size,
+                media_type=media_type,
+                resource_name=filename,
+            )
+            response = await self._doc_client.get_resource_upload_info_with_options_async(
+                table_config.base_id,
+                request,
+                headers,
+                util_models.RuntimeOptions(),
+            )
+            body = response.body
 
-                if not upload_info.get("success"):
-                    raise Exception(f"获取上传信息失败: {upload_info}")
+            if not body.success:
+                raise Exception(f"获取上传信息失败: success={body.success}")
 
-                result = upload_info["result"]
-                upload_url = result["uploadUrl"]
-                resource_id = result["resourceId"]
-                resource_url = result["resourceUrl"]
+            result = body.result
+            upload_url = result.upload_url
+            resource_id = result.resource_id
+            resource_url = result.resource_url
 
             # Step 2: PUT 上传文件到 OSS
             async with httpx.AsyncClient(timeout=60) as client:

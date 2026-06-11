@@ -31,6 +31,7 @@ def table_config():
         key="test",
         base_id="tbl_test",
         sheet_id="sheet_test",
+        image_api_key_env="TEST_IMAGE_API_KEY",
     )
 
 
@@ -107,20 +108,19 @@ async def test_download_file(client):
 @pytest.mark.asyncio
 async def test_upload_attachment(client, table_config):
     """上传附件到钉钉云空间。"""
-    mock_class, mock_client, mock_token_response = _mock_http()
+    mock_class, mock_client, _ = _mock_http()
 
-    # 第二次 post 调用（获取上传信息）返回不同的响应
-    upload_response = MagicMock()
-    upload_response.json.return_value = {
-        "success": True,
-        "result": {
-            "uploadUrl": "https://oss.example.com/upload",
-            "resourceId": "res_001",
-            "resourceUrl": "/resource/gen.png",
-        },
-    }
-    # 第一次 post 返回 token，第二次返回 upload info
-    mock_client.post.side_effect = [mock_token_response, upload_response]
+    # Mock Doc SDK 返回上传信息
+    from alibabacloud_dingtalk.doc_1_0 import models as doc_models
+
+    mock_response = MagicMock()
+    mock_response.body.success = True
+    mock_response.body.result.upload_url = "https://oss.example.com/upload"
+    mock_response.body.result.resource_id = "res_001"
+    mock_response.body.result.resource_url = "/resource/gen.png"
+    client._doc_client.get_resource_upload_info_with_options_async = AsyncMock(
+        return_value=mock_response
+    )
 
     with patch("httpx.AsyncClient", mock_class):
         result = await client.upload_attachment(table_config, b"image_bytes", "test.png")
@@ -129,6 +129,8 @@ async def test_upload_attachment(client, table_config):
         assert result["url"] == "/resource/gen.png"
         assert result["filename"] == "test.png"
         assert result["size"] == len(b"image_bytes")
+        # 验证 Doc SDK 被调用
+        client._doc_client.get_resource_upload_info_with_options_async.assert_awaited_once()
         # 验证 PUT 上传到 OSS 被调用
         assert mock_client.put.called
 
