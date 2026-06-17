@@ -652,3 +652,152 @@ max_retries = 1     # 重试次数（不含首次）
 | 延迟等待 | `await asyncio.sleep()` | `time.sleep()` |
 | 并发控制 | `asyncio.Semaphore` | `threading.Lock` |
 | 后台任务 | `BackgroundTasks.add_task()` | `threading.Thread` |
+
+---
+
+## 9. 视频生成模块
+
+视频模块**完全独立于图片模块**，不复用 AIGenerator 的 google/openai SDK 路由，新增独立文件与依赖。
+
+### 9.1 新增模块
+
+| 文件 | 职责 |
+|------|------|
+| `src/generator/video_engine.py` | `VideoGenerator`：按 model_name 前缀路由到三家厂商（Kling / Hailuo / Wanxiang），统一提交 + 轮询 + 下载视频字节 |
+| `src/services/video_generation.py` | `VideoGenerationService`：9 步编排（与 GenerationService 7 步骨架对称，步骤 5-7 在 VideoGenerator 内部） |
+| `src/models/video_request.py` | `VideoGenerateRequest`（字段同 GenerateRequest，但 `table_key` 必填） |
+
+### 9.2 `VideoGenerator` 类（`src/generator/video_engine.py`）
+
+```python
+class VideoGenerator:
+    """视频生成统一引擎：提交任务 + 轮询 + 下载结果。"""
+
+    def __init__(self, settings: Settings):
+        self.settings = settings
+
+    async def generate(
+        self,
+        model: str,                       # 钉钉表格原值，如 "kling-v2-5-turbo"
+        prompt: str,
+        reference_image: bytes,
+        table_config: VideoTableConfig,
+    ) -> bytes:
+        """提交 → 轮询 → 下载视频字节。"""
+        provider = _resolve_provider(model)             # 前缀路由
+        provider_cfg = self.settings.get_video_provider(provider)
+        api_key = self.settings.get_api_key(table_config.video_api_key_env)
+        image_b64 = base64.b64encode(_to_png_bytes(reference_image)).decode("ascii")
+        # ... 各家 _submit_x + _poll_x 实现
+        return await self._download_video(video_url)
+```
+
+**关键设计**：
+- `model` 参数即钉钉单元格原值，直接作为请求体的 `model_name` / `model` 字段发出，**服务侧零翻译**
+- 首帧图统一转 PNG 后 base64 编码，三家中转站均支持
+- 私有 `_retry_on_network_error` 模式（与 AIGenerator / DingTalkClient 同模式，独立维护避免耦合）
+- `_poll_until_done` 统一三家轮询骨架：初始等待 → 间隔轮询 → 总超时
+
+**`_resolve_provider` 前缀路由**：
+
+```python
+def _resolve_provider(model_name: str) -> str:
+    name = model_name.strip().lower()
+    if name.startswith("kling"):
+        return "kling"
+    if name.startswith(("minimax-hailuo", "minimax", "hailuo")):
+        return "hailuo"
+    if name.startswith(("happyhorse", "wanx", "wan")):
+        return "wanxiang"
+    raise ValueError(f"Unknown video model (cannot route to provider): {model_name}")
+```
+
+**终态归一**：三家状态字符串大小写各异（`succeed` / `Success` / `SUCCEEDED`），`_poll_until_done` 内部用 `status.lower() in _TERMINAL_SUCCESS` 统一判定。
+
+### 9.3 `VideoGenerationService` 类（`src/services/video_generation.py`）
+
+9 步编排：
+
+| 步骤 | 任务 |
+|------|------|
+| 1 | `settings.get_video_table(table_key)` |
+| 2 | `dingtalk.get_record()` — 校验提示词/视频模型/首帧图三必填 |
+| 3 | 同上 |
+| 4 | `dingtalk.download_file()` — 下载首帧图 |
+| 5-7 | `video_generator.generate()` — 内部完成 base64 编码、提交、轮询、下载 mp4 |
+| 8 | `dingtalk.upload_attachment(media_type="video/mp4")` |
+| 9 | `dingtalk.update_record()` — 回写"生成视频"附件 + "成功" + "生成时间" |
+
+并发控制：`Semaphore(settings.server.video_max_concurrency=3)`，与图片 `Semaphore(max_concurrency=5)` 完全独立。
+
+### 9.4 `VideoGenerateRequest`（`src/models/video_request.py`）
+
+```python
+class VideoGenerateRequest(BaseModel):
+    record_id: str
+    table_key: str  # 必填（视频表无 default 兜底）
+
+    @field_validator("record_id") ... # 不为空
+    @field_validator("table_key") ... # 不为空
+```
+
+### 9.5 配置类扩展（`src/config.py`）
+
+| BaseModel | 对应 toml 节 | 说明 |
+|-----------|--------------|------|
+| `VideoProviderConfig` | `[ai.video_provider."xxx"]` | 仅含 `base_url`，model_name 由钉钉表格透传 |
+| `VideoTableConfig` | `[[dingtalk.video_tables]]` | 字段映射（`prompt_field`/`video_model_field`/`reference_image_field`/`result_video_field`/...） |
+| `VideoPollConfig` | `[ai.video.poll]` | `initial_wait=10`/`interval=5`/`max_total=600` |
+
+`Settings` 新增 `ai.video_providers` / `dingtalk.video_tables` / `ai.video_poll` 字段，新增方法：
+- `get_video_table(table_key)` — 不复用 `default_table`，找不到抛 `ConfigError`
+- `get_video_provider(provider_key)` — 不存在抛 `ConfigError`
+
+环境变量覆盖键：`VIDEO_MAX_CONCURRENCY`、`AI_VIDEO_POLL_INITIAL_WAIT` / `_INTERVAL` / `_MAX_TOTAL`。
+
+### 9.6 依赖注入（`src/api/deps.py`）
+
+新增两个 `@lru_cache` 单例（与图片侧对称）：
+
+```python
+@lru_cache
+def get_video_generator() -> VideoGenerator: ...
+
+@lru_cache
+def get_video_generation_service() -> VideoGenerationService:
+    return VideoGenerationService(
+        dingtalk=get_dingtalk_client(),        # 复用：共享 access_token 缓存
+        video_generator=get_video_generator(),
+        settings=get_settings(),
+    )
+```
+
+### 9.7 API 路由（`src/api/router.py`）
+
+```python
+@router.post("/api/v1/video/generate", response_model=TaskResponse, status_code=200)
+async def trigger_video_generation(
+    req: VideoGenerateRequest,
+    background_tasks: BackgroundTasks,
+    service: VideoGenerationService = Depends(get_video_generation_service),
+    _api_key: str = Depends(verify_api_key),
+) -> TaskResponse:
+    background_tasks.add_task(service.process, req.record_id, req.table_key)
+    return TaskResponse(status="accepted", message="视频生成任务已提交...", ...)
+```
+
+### 9.8 钉钉客户端扩展（`src/dingtalk/client.py`）
+
+`upload_attachment` 加 `media_type` 入参（默认 `"image/png"`，向后兼容）：
+
+```python
+async def upload_attachment(
+    self,
+    table_config: TableConfig,
+    file_bytes: bytes,
+    filename: str,
+    media_type: str = "image/png",  # 视频场景传 "video/mp4"
+) -> dict: ...
+```
+
+参数名 `image_bytes` → `file_bytes`，**所有现有调用方使用位置参数**，向后兼容。

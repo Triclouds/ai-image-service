@@ -5,9 +5,10 @@ from datetime import datetime
 from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException
 from loguru import logger
 
-from api.deps import get_generation_service, get_settings
-from models import GenerateRequest, HealthResponse, TaskResponse
+from api.deps import get_generation_service, get_settings, get_video_generation_service
+from models import GenerateRequest, HealthResponse, TaskResponse, VideoGenerateRequest
 from services.generation import GenerationService
+from services.video_generation import VideoGenerationService
 
 router = APIRouter()
 
@@ -47,6 +48,34 @@ async def trigger_generation(
     return TaskResponse(
         status="accepted",
         message="任务已提交，处理完成后将更新表格",
+        record_id=req.record_id,
+        timestamp=datetime.now().strftime("%Y-%m-%d %H:%M"),
+    )
+
+
+@router.post(
+    "/api/v1/video/generate",
+    response_model=TaskResponse,
+    status_code=200,
+    responses={
+        200: {"description": "视频生成任务已接收，后台处理中"},
+        400: {"description": "参数校验失败"},
+        401: {"description": "API Key 无效"},
+        404: {"description": "视频表格配置未找到"},
+    },
+)
+async def trigger_video_generation(
+    req: VideoGenerateRequest,
+    background_tasks: BackgroundTasks,
+    service: VideoGenerationService = Depends(get_video_generation_service),  # noqa: B008
+    _api_key: str = Depends(verify_api_key),  # noqa: B008
+) -> TaskResponse:
+    """接收钉钉自动化回调，触发异步视频生成流程（提交 + 轮询 + 上传 + 回写）。"""
+    logger.info("收到 video generate 请求", record_id=req.record_id, table_key=req.table_key)
+    background_tasks.add_task(service.process, req.record_id, req.table_key)
+    return TaskResponse(
+        status="accepted",
+        message="视频生成任务已提交，处理完成后将更新表格",
         record_id=req.record_id,
         timestamp=datetime.now().strftime("%Y-%m-%d %H:%M"),
     )

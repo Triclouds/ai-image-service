@@ -149,11 +149,21 @@ class DingTalkClient:
         await self._retry_on_network_error(_do_update)
 
     async def upload_attachment(
-        self, table_config: TableConfig, image_bytes: bytes, filename: str
+        self,
+        table_config: TableConfig,
+        file_bytes: bytes,
+        filename: str,
+        media_type: str = "image/png",
     ) -> dict:
-        """上传附件到钉钉云空间，返回附件格式数据。"""
-        file_size = len(image_bytes)
-        media_type = "image/png"
+        """上传附件到钉钉云空间，返回附件格式数据。
+
+        Args:
+            table_config: 表格配置。
+            file_bytes: 任意类型文件字节（图生图场景用 "image/png"，图生视频场景用 "video/mp4"）。
+            filename: 文件名（需带扩展名）。
+            media_type: MIME 类型，默认 "image/png"。
+        """
+        file_size = len(file_bytes)
 
         async def _do_upload():
             token = await self._get_access_token()
@@ -188,7 +198,7 @@ class DingTalkClient:
             async with httpx.AsyncClient(timeout=60) as client:
                 await client.put(
                     upload_url,
-                    content=image_bytes,
+                    content=file_bytes,
                     headers={"Content-Type": media_type},
                 )
 
@@ -218,3 +228,51 @@ class DingTalkClient:
                 return response.content
 
         return await self._retry_on_network_error(_do_download)
+
+    async def list_records(
+        self,
+        base_id: str,
+        sheet_id: str,
+        field: str,
+        value: str,
+        field_names: list[str] | None = None,
+        max_results: int = 100,
+        next_token: str | None = None,
+    ) -> list[dict]:
+        """按字段精确过滤查询。
+
+        对应钉钉 SDK: list_records_with_options_async
+        详见 docs/sdk_docs/列出多行记录.md
+
+        Returns:
+            [{id, fields, ...}, ...]；空列表 = 未找到。
+        """
+        async def _do():
+            token = await self._get_access_token()
+            headers = notable_models.ListRecordsHeaders()
+            headers.x_acs_dingtalk_access_token = token
+
+            request = notable_models.ListRecordsRequest(
+                operator_id=self.operator_id,
+                max_results=max_results,
+                next_token=next_token,
+                filter=notable_models.ListRecordsRequestFilter(
+                    combination="and",
+                    conditions=[notable_models.ListRecordsRequestFilterConditions(
+                        field=field,
+                        operator="equal",
+                        value=[value],
+                    )],
+                ),
+                field_id_or_names=field_names,
+            )
+            response = await self._client.list_records_with_options_async(
+                base_id=base_id,
+                sheet_id_or_name=sheet_id,
+                request=request,
+                headers=headers,
+                runtime=util_models.RuntimeOptions(),
+            )
+            return response.body.records if hasattr(response, "body") else []
+
+        return await self._retry_on_network_error(_do)

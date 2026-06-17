@@ -9,6 +9,7 @@ import io
 
 import httpx
 from google import genai
+from google.genai import types
 from loguru import logger
 from openai import AsyncOpenAI
 from PIL import Image
@@ -24,12 +25,25 @@ def _to_png_bytes(image_bytes: bytes) -> bytes:
     return buf.getvalue()
 
 
+def _map_gpt_size(resolution: str | None) -> str | None:
+    """把 NanoBanana 风格 resolution 映射到 GPT 5 档 size。
+
+    GPT 静态类型只支持 {"256x256", "512x512", "1024x1024", "1536x1024", "1024x1536", "auto"}。
+    1K 是唯一能安全命中的档位（不携带 aspect_ratio 信息，GPT 走 prompt 文本理解比例）。
+    2K/4K 不在枚举里 → 返回 None，让 GPT 走默认（auto）。
+    """
+    return "1024x1024" if resolution == "1K" else None
+
+
 class AIGenerator:
     """AI 生图引擎，统一调度 Google / OpenAI SDK。
 
     根据 config.toml 中 model 配置的 provider 字段（"google" / "openai"）
     分派到对应 SDK。新增模型只需在 config.toml 中添加配置，无需改代码。
     """
+
+    # 批量生图内部并发上限，避免 count 较大时打爆上游 API rate limit
+    _BATCH_CONCURRENCY = 3
 
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -54,6 +68,8 @@ class AIGenerator:
         prompt: str,
         reference_image: bytes | None = None,
         table_config: TableConfig | None = None,
+        aspect_ratio: str | None = None,
+        resolution: str | None = None,
     ) -> bytes:
         """根据 model 参数分派到对应 SDK，返回统一 PNG 格式字节流。
 
@@ -62,6 +78,9 @@ class AIGenerator:
             prompt: 生图提示词
             reference_image: 素材图字节（可选）
             table_config: 表格配置，通过 image_api_key_env 字段获取 AI 图片 API Key 环境变量名。必填。
+            aspect_ratio: 生成比例（如 "16:9"）。仅 NanoBanana 生效，GPT 忽略。
+            resolution: 分辨率档位（"1K"/"2K"/"4K"）。仅 NanoBanana 完整生效，
+                        GPT 走 _map_gpt_size 最小化映射（仅 1K 命中）。
         """
         if table_config is None:
             raise ValueError("table_config is required to resolve API key")
@@ -74,14 +93,20 @@ class AIGenerator:
                 model=model,
                 provider=model_cfg.provider,
                 model_name=model_cfg.model_name,
+                aspect_ratio=aspect_ratio or "",
+                resolution=resolution or "",
             )
             if model_cfg.provider == "google":
                 raw = await self._generate_nano(
-                    model_cfg.base_url, model_cfg.model_name, prompt, reference_image, api_key
+                    model_cfg.base_url, model_cfg.model_name,
+                    prompt, reference_image, api_key,
+                    aspect_ratio=aspect_ratio, resolution=resolution,
                 )
             elif model_cfg.provider == "openai":
                 raw = await self._generate_gpt(
-                    model_cfg.base_url, model_cfg.model_name, prompt, reference_image, api_key
+                    model_cfg.base_url, model_cfg.model_name,
+                    prompt, reference_image, api_key,
+                    resolution=resolution,
                 )
             else:
                 raise ValueError(f"Unsupported provider: {model_cfg.provider} (model={model})")
@@ -89,35 +114,111 @@ class AIGenerator:
 
         return await self._retry_on_network_error(_do_generate)
 
-    async def _generate_nano(self, base_url: str, model_name: str, prompt: str, image_bytes: bytes | None, api_key: str) -> bytes:
-        """调用 Google genai SDK 图生图。"""
+    async def generate_batch(
+        self,
+        model: str,
+        prompts: list[str],
+        reference_image: bytes | None = None,
+        table_config: TableConfig | None = None,
+        aspect_ratio: str | None = None,
+        resolution: str | None = None,
+    ) -> list[bytes | None]:
+        """并发调 generate() 生成多张图，单张失败转 None 不抛。
+
+        API Key 通过 table_config.image_api_key_env 解析。
+        内部用 Semaphore 限制并发数（_BATCH_CONCURRENCY）。
+        aspect_ratio / resolution 对每张图相同，透传到 generate()。
+        """
+        if not prompts:
+            return []
+
+        semaphore = asyncio.Semaphore(self._BATCH_CONCURRENCY)
+
+        async def _one(idx: int, prompt: str) -> bytes | None:
+            try:
+                async with semaphore:
+                    return await self.generate(
+                        model=model, prompt=prompt,
+                        reference_image=reference_image,
+                        table_config=table_config,
+                        aspect_ratio=aspect_ratio,
+                        resolution=resolution,
+                    )
+            except Exception as e:
+                logger.warning("单图生成失败", index=idx, error=str(e))
+                return None
+
+        results = await asyncio.gather(*[_one(i, p) for i, p in enumerate(prompts)])
+        return list(results)
+
+    async def _generate_nano(
+        self,
+        base_url: str,
+        model_name: str,
+        prompt: str,
+        image_bytes: bytes | None,
+        api_key: str,
+        aspect_ratio: str | None = None,
+        resolution: str | None = None,
+    ) -> bytes:
+        """调用 Google genai SDK 图生图。
+
+        aspect_ratio / resolution 任一非空时构造 image_config，否则 config=None 走 SDK 默认。
+        """
         client = genai.Client(
             api_key=api_key,
             http_options={"base_url": base_url},
         ).aio
         pil_image = Image.open(io.BytesIO(image_bytes))
+
+        # 仅在用户提供比例/分辨率时才加 image_config，避免空 ImageConfig() 触发 SDK 校验
+        config = None
+        if aspect_ratio or resolution:
+            config = types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+                image_config=types.ImageConfig(
+                    aspect_ratio=aspect_ratio or None,
+                    image_size=resolution or None,
+                ),
+            )
+
         response = await client.models.generate_content(
             model=model_name,
             contents=[prompt, pil_image],
+            config=config,
         )
         for part in response.parts:
             if part.inline_data is not None:
                 return _to_png_bytes(part.inline_data.data)
         raise ValueError("No image generated in response")
 
-    async def _generate_gpt(self, base_url: str, model_name: str, prompt: str, image: bytes | None, api_key: str) -> bytes:
-        """调用 OpenAI SDK 图生图。"""
+    async def _generate_gpt(
+        self,
+        base_url: str,
+        model_name: str,
+        prompt: str,
+        image: bytes | None,
+        api_key: str,
+        resolution: str | None = None,
+    ) -> bytes:
+        """调用 OpenAI SDK 图生图。
+
+        resolution 走 _map_gpt_size 映射到 5 档 size，映射不上为 None（走 SDK 默认 auto）。
+        aspect_ratio 对 GPT 无效，忽略。
+        """
         client = AsyncOpenAI(
             api_key=api_key,
             base_url=base_url,
             timeout=httpx.Timeout(300.0, connect=30.0),
             max_retries=0,
         )
+        size = _map_gpt_size(resolution)
         response = await client.images.edit(
             model=model_name,
             image=image,
             prompt=prompt,
             n=1,
             response_format="b64_json",
+            size=size,
         )
         return base64.b64decode(response.data[0].b64_json)

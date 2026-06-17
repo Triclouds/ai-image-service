@@ -158,3 +158,95 @@ AIGenerator 统一入口，根据 model 路由到对应 SDK Client。
 4. 生图编排服务
 5. API 接口
 6. 端到端验证
+
+---
+
+## 七、视频生成（已实现 ✅）
+
+### 7.1 业务背景
+
+在图片生成基础上新增**完全独立的视频生成能力**（独立接口、独立编排、独立 generator、独立配置）。首批接入三家厂商：快手可灵 (Kling) / 海螺 (Hailuo) / 通义万象 (Wanxiang)，均通过 `https://api.vectorengine.ai` 中转。
+
+### 7.2 已完成功能
+
+- ✅ 配置层：`VideoProviderConfig` / `VideoTableConfig` / `VideoPollConfig` + toml 加载 + 环境变量覆盖
+- ✅ `VideoGenerator`：三家 `_submit_*` / `_poll_*` + 统一 `_poll_until_done` 骨架 + `_download_video`
+- ✅ `_resolve_provider` 前缀路由（`kling*` / `MiniMax-Hailuo*` / `happyhorse*` 等）
+- ✅ `VideoGenerationService`：9 步编排（步骤 5-7 在 generator 内完成）+ `Semaphore(video_max_concurrency=3)`
+- ✅ `POST /api/v1/video/generate` 路由 + `VideoGenerateRequest` 模型
+- ✅ `upload_attachment` 加 `media_type` 入参（视频场景 `video/mp4`）
+- ✅ 单元测试：`tests/test_generator/test_video_engine.py`（8 个 case，覆盖三家 submit/poll/失败/超时）+ `tests/test_services/test_video_generation.py`（6 个 case，覆盖 9 步流程）+ API 路由测试 4 个 case
+- ✅ 文档：ARCHITECTURE.md §9、MODULES.md §9、API.md §6、本文件 §7
+
+### 7.3 已知限制 / 待用户填值
+
+- `config.toml` 中三个 `[[dingtalk.video_tables]]` 的 `base_id` / `sheet_id` 为 `<待补>`，需要用户填入钉钉视频表的实际 ID 后才能端到端运行
+- **视频复用同品牌图片 API Key**（vectorengine 中转站同一账号 image/video 通用）：`config.toml` 中 `video_api_key_env` 直接指向 `ZHUOZHI_IMAGE_API_KEY` / `HUAPU_IMAGE_API_KEY` / `AHMI_IMAGE_API_KEY`，无需新增 `*_VIDEO_API_KEY`
+- 海螺/通义万象对 base64 的支持度需实测：当前按 base64 实现，若实测不支持则需切换为"先回写钉钉云空间获得公网 URL"作为兜底（当前未预留）
+
+### 7.4 后续可扩展
+
+- 文生视频（text-to-video）：当前仅图生视频（image-to-video）
+- 多镜头视频拼接
+- 历史任务查询接口（按 record_id 查询当前任务进度）
+- 视频任务主动回调（当前走轮询，可改为 webhook）
+
+---
+
+## 八、批量生图（已实现 ✅）
+
+### 8.1 业务背景
+
+在现有单图生图基础上新增**批量生图模式**：一次 HTTP 触发，基于双表（生图表 + 提示词表）生成多张图片（同一提示词模板 × 不同扰动），串行上传后回写。现有 3 张单图配置段、HTTP 接口、单图流程全部不动；通过 `TableConfig.batch_mode` 字段分流。
+
+### 8.2 已完成功能
+
+- ✅ `PromptTableConfig`：提示词表字段映射（提示词 / 生成类型 / 生成数量 / 生成比例 / 分辨率 / 扰动列表）
+- ✅ `TableConfig` 扩展：`batch_mode` / `task_name` / `prompt_table_sheet_id` / `prompt_table` + 可选增强字段（`error_field` / `style_code_field` / `run_account_field`）
+- ✅ `_validate_batch_mode_config()`：启动时校验，缺字段即 fail-fast
+- ✅ `models/prompt_config.py`：`PromptConfig.from_prompt_record` + `build_prompts`（扰动按索引对齐 + 循环复用 + count≤0 兜底）
+- ✅ `DingTalkClient.list_records`：按字段精确过滤，对应 SDK `list_records_with_options_async`，支持 `task_name` → 提示词表行查询
+- ✅ `AIGenerator.generate_batch`：并发调 `generate()`，单张失败转 `None` 不抛；内部 `Semaphore(_BATCH_CONCURRENCY=3)` 限流
+- ✅ `GenerationService` 重构：`process()` 加 `batch_mode` 分支；现有逻辑搬到 `_process_single()`；新增 `_process_batch()`（双表查询 + 多图生成 + 串行上传 + 回写）；抽 `_resolve_model` 静态方法复用
+- ✅ 单元测试：`tests/test_models/test_prompt_config.py`（10 个）+ `tests/test_generator/test_engine.py`（5 个）+ `tests/test_dingtalk/test_client.py` 新增 5 个 `list_records` 用例 + `tests/test_services/test_generation.py` 新增 13 个（9 批量流程 + 4 配置校验）
+- ✅ HTTP 接口 `POST /api/v1/generate {record_id, table_key}` 完全不变；调用方把 `table_key` 换成批量表 key 即可
+
+### 8.3 配置示例（详见 `docs/PLAN-batch-image-generation.md` §4.1.5）
+
+批量表**复用现有品牌的 `*_IMAGE_API_KEY`**（同一中转站账号），无需新增 `BATCH_*` 类 key：
+
+```toml
+[[dingtalk.tables]]
+key = "zhuozhi-batch-action"
+base_id = "<新建 base 的 id>"
+sheet_id = "<动作图 sheet_id>"
+image_api_key_env = "ZHUOZHI_IMAGE_API_KEY"  # 复用现有 Key
+
+batch_mode = true
+task_name = "动作图-A"
+prompt_table_sheet_id = "<提示词表 sheet_id>"
+
+[dingtalk.tables.prompt_table]
+prompt_field = "提示词"
+count_field = "生成数量"
+perturbations_field = "扰动列表"
+# ... 其他字段同理
+```
+
+### 8.4 已知限制 / 待用户填值
+
+- 与视频生成共用同一钉钉 base：批量表的 `base_id` / `sheet_id` 需用户填实际值；提示词表的 `任务名称` 列名硬编码为字面量"任务名称"
+- 同一 sheet 内所有行共用同一个 `task_name`（写在配置里），跨任务需拆 sheet
+- 提示词表行 ≤ 100 时无需分页（`max_results` 默认 100）；超过需补 `next_token` 循环
+- 批量模式状态文本新增 `"成功 N/M"` 形式（部分成功场景）；单图流程仍只产 `"成功"` 或 `"失败: xxx"`
+- `aspect_ratio` / `resolution` 字段保留配置位但当前未真正消费
+
+### 8.5 后续可扩展（不在本期范围）
+
+- 全局共享 `[dingtalk.prompt_table]` 配置段（多 sheet 重复配置当前接受）
+- 真正消费 `aspect_ratio` / `resolution`
+- 多素材图
+- HTTP 批量接收多条 `record_id`
+- 主动拉取表格中"待处理"记录
+- `list_records` 分页循环
+- 提示词表"任务名称"列名做成配置项

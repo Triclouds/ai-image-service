@@ -32,7 +32,7 @@ result_time_field = "生成时间"
 # 表格 3：AHMI基础生图
 [[dingtalk.tables]]
 key = "ahmi-base"
-base_id = "YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb"
+base_id = "AR4GpnMqJzR3ByBYsa4jEGgRJKe0xjE3"
 sheet_id = "hERWDMS"
 image_api_key_env = "AHMI_IMAGE_API_KEY"
 prompt_field = "提示词"
@@ -69,3 +69,71 @@ provider = "google"
 base_url = "https://api.vectorengine.ai/v1"
 model_name = "gpt-image-2"
 provider = "openai"
+
+# ===== 视频生成 =====
+
+# 视频轮询策略
+[ai.video.poll]
+initial_wait = 10  # 首次轮询前等待（秒）
+interval = 5       # 轮询间隔（秒）
+max_total = 600    # 总超时（秒），默认 10 分钟
+
+# 视频厂商基础配置（model_name 由钉钉表格透传，不在此处配置）
+[ai.video_provider."kling"]
+base_url = "https://api.vectorengine.ai"
+
+[ai.video_provider."hailuo"]
+base_url = "https://api.vectorengine.ai"
+
+[ai.video_provider."wanxiang"]
+base_url = "https://api.vectorengine.ai"
+
+# 视频表格配置（与图片表独立）
+# 钉钉 base_id / sheet_id 需用户填实际值后端到端运行
+# 复用同品牌图片表的 API Key（vectorengine 中转站同一账号 image/video 通用）
+[[dingtalk.video_tables]]
+key = "zhuozhi-video"
+base_id = "<待补>"
+sheet_id = "<待补>"
+video_api_key_env = "ZHUOZHI_IMAGE_API_KEY"
+
+[[dingtalk.video_tables]]
+key = "huapu-video"
+base_id = "<待补>"
+sheet_id = "<待补>"
+video_api_key_env = "HUAPU_IMAGE_API_KEY"
+
+[[dingtalk.video_tables]]
+key = "ahmi-video"
+base_id = "<待补>"
+sheet_id = "<待补>"
+video_api_key_env = "AHMI_IMAGE_API_KEY"
+
+
+# ===== 批量生图配置 =====
+# 任务 A：动作图 sheet
+[[dingtalk.tables]]
+key = "ahmi-batch-action"
+base_id = "dpYLaezmVNqdr0rgsGAEDj7NWrMqPxX6"                       # 提示词表与生图表可共享同一 base
+sheet_id = "vS0OnC0"
+image_api_key_env = "AHMI_IMAGE_API_KEY"      # 复用现有 Key，无需新增
+
+batch_mode = true
+task_name = "动作图"                            # 提示词表"任务名称"列里精确匹配的值
+prompt_table_sheet_id = "gfZ3Ef8"
+
+# 字段映射（按你的钉钉表实际列名调整）
+model_field = "生图模型"
+reference_image_field = "模特标准图"
+result_image_field = "生成图片结果"
+result_status_field = "生成情况"
+result_time_field = "生成时间"
+style_code_field = "款式编码"
+
+[dingtalk.tables.prompt_table]
+prompt_field = "提示词"
+generate_type_field = "生成类型"
+count_field = "生成数量"
+aspect_ratio_field = "生成比例"
+resolution_field = "分辨率"
+perturbations_field = "扰动列表"
