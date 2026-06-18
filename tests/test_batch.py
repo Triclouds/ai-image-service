@@ -25,7 +25,7 @@ def main() -> int:
         return 1
 
     url = os.getenv("TEST_URL", "http://localhost:8030/api/v1/generate")
-    record_id = os.getenv("RECORD_ID", "asMDL7Euaz")
+    record_id = os.getenv("RECORD_ID", "65OHX30jyj")
     table_key = os.getenv("TABLE_KEY", "ahmi-batch-action")
     timeout = 10
 

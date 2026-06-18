@@ -271,3 +271,4 @@ async def test_list_records_request_filter_format(client):
     assert cond["field"] == "任务名称"
     assert cond["operator"] == "equal"
     assert cond["value"] == ["动作图-A"]
+

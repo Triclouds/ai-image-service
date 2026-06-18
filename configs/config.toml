@@ -109,18 +109,18 @@ base_id = "<待补>"
 sheet_id = "<待补>"
 video_api_key_env = "AHMI_IMAGE_API_KEY"
 
-
+# https://alidocs.dingtalk.com/notable/record?dentryUuid=YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb&rowId=b4F2Xv6GWZ&sheetId=6ekHgxC&viewId=MUEAY6R
 # ===== 批量生图配置 =====
 # 任务 A：动作图 sheet
 [[dingtalk.tables]]
 key = "ahmi-batch-action"
-base_id = "dpYLaezmVNqdr0rgsGAEDj7NWrMqPxX6"                       # 提示词表与生图表可共享同一 base
-sheet_id = "vS0OnC0"
+base_id = "YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb"                       # 提示词表与生图表可共享同一 base
+sheet_id = "6ekHgxC"
 image_api_key_env = "AHMI_IMAGE_API_KEY"      # 复用现有 Key，无需新增
 
 batch_mode = true
 task_name = "动作图"                            # 提示词表"任务名称"列里精确匹配的值
-prompt_table_sheet_id = "gfZ3Ef8"
+prompt_table_sheet_id = "jzFYB7x"
 
 # 字段映射（按你的钉钉表实际列名调整）
 model_field = "生图模型"

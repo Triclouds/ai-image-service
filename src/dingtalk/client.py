@@ -17,6 +17,7 @@ from alibabacloud_tea_openapi import models as open_api_models
 from alibabacloud_tea_util import models as util_models
 from alibabacloud_dingtalk.doc_1_0.client import Client as DocClient
 from alibabacloud_dingtalk.doc_1_0 import models as doc_models
+from darabonba.policy.retry import RetryOptions, RetryCondition
 from loguru import logger
 
 from config import Settings, TableConfig
@@ -37,9 +38,26 @@ class DingTalkClient:
         self._token: str | None = None
         self._token_expires_at: float = 0
 
-        config = open_api_models.Config()
-        config.protocol = "https"
-        config.region_id = "central"
+        config = open_api_models.Config(
+            protocol="https",
+            region_id="central",
+            connect_timeout=10_000,   # 10 秒（单位是**毫秒**）
+            read_timeout=60_000,      # 60 秒（单位是**毫秒**）
+            retry_options=RetryOptions({
+                "retryable": True,
+                "retryCondition": [
+                    {
+                        "maxAttempts": 3,
+                        "exception": ["ClientException", "ServerException", "RetryError"],
+                        "backoff": {"policy": "Exponential", "period": 1, "cap": 10000},
+                    },
+                ],
+                "noRetryCondition": [
+                    # 钉钉 503 暂时不重试（按既定决定）
+                    {"exception": ["ServiceUnavailable"]},
+                ],
+            }),
+        )
         self._client = NotableClient(config)
         self._oauth2_client = OAuth2Client(config)
         self._doc_client = DocClient(config)
