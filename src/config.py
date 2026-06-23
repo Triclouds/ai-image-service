@@ -66,6 +66,16 @@ class TableConfig(BaseModel):
     style_code_field: str | None = None
     run_account_field: str | None = None
 
+    # 搜推素材三段式提示词（仅 zhuozhi-sousuo 启用；其他表默认走原 batch 逻辑）
+    prompt_section_mode: bool = False
+    section_marker_pattern: str | None = None  # 段标题正则，如 "^([一二三四五六七八九十]+)、"
+    section_titles: dict[str, str] | None = None  # 段标题前缀 → 类型名，如 {"一、": "白底图"}
+    output_order: list[str] | None = None  # 段输出顺序，如 ["细节图", "场景图", "白底图"]
+    count_per_section: int = 3
+    shop_code_field: str | None = None  # 店铺编码提取源（singleSelect 字段名）
+    shop_code_separator: str = ","  # 店铺编码分隔符（取最后一段）
+    goods_id_field: str | None = None  # 商品 ID 字段名（用于文件名）
+
 
 class ModelConfig(BaseModel):
     """AI 模型配置，对应 [ai.model."xxx"]。"""
