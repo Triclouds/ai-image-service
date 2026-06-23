@@ -16,8 +16,12 @@ from generator import AIGenerator
 from models.prompt_config import (
     _FALLBACK_SUFFIX_START,
     _extract_pert_number,
+    _to_text,
     PromptConfig,
+    assign_sousuo_index,
     build_prompts,
+    build_sousuo_prompts,
+    parse_prompt_sections,
 )
 
 
@@ -194,7 +198,17 @@ class GenerationService:
         """批量生图流程：双表查询 + 多图生成 + 串行上传 + 回写。
 
         前置条件：table_config.batch_mode=true 且启动时校验通过。
+
+        分流：
+        - table_config.prompt_section_mode=True → 走 _process_batch_sousuo
+          （三段式：每段 6 候选里抽 3 张，按 output_order 编号 1-9）
+        - 否则 → 走原 8 步逻辑（ahmi-batch-action 等）
         """
+        # 0. 分流：搜推素材三段式（仅 zhuozhi-sousuo 启用）
+        if table_config.prompt_section_mode:
+            await self._process_batch_sousuo(record_id, table_config)
+            return
+
         step_start = time.monotonic()
 
         # 1. 取生图表记录
@@ -332,6 +346,206 @@ class GenerationService:
         )
         logger.info(
             "批量生图耗时",
+            record_id=record_id,
+            elapsed_sec=round(time.monotonic() - step_start, 2),
+        )
+
+    # ========================================================================
+    # 搜推素材三段式：长文本按段标题拆段，每段 6 候选里抽 3 张，
+    # 按 output_order 编号 1-9，文件名 {record_id}_{goods_id}_{shop_code}_{idx}.png
+    # ========================================================================
+
+    async def _process_batch_sousuo(
+        self, record_id: str, table_config: TableConfig
+    ) -> None:
+        """搜推素材三段式批量生图（仅 zhuozhi-sousuo 启用）。"""
+        step_start = time.monotonic()
+
+        # 1. 取生图表记录
+        step = "获取记录数据"
+        record = await self.dingtalk.get_record(table_config, record_id)
+        fields = record.get("fields", {})
+
+        # 2. 提取商品ID 和 店铺编码（用于自定义文件名）
+        step = "提取商品ID和店铺编码"
+        goods_id = _to_text(fields.get(table_config.goods_id_field)) if table_config.goods_id_field else ""
+        shop_raw = _to_text(fields.get(table_config.shop_code_field)) if table_config.shop_code_field else ""
+        shop_code = shop_raw.rsplit(table_config.shop_code_separator, 1)[-1].strip() if shop_raw else ""
+        logger.info(
+            "搜推素材命名字段",
+            record_id=record_id,
+            goods_id=goods_id,
+            shop_raw=shop_raw,
+            shop_code=shop_code,
+        )
+
+        # 3. 下载素材图（与原 batch 逻辑相同）
+        step = "下载素材图"
+        ref_image_data = fields.get(table_config.reference_image_field)
+        if not isinstance(ref_image_data, list) or not ref_image_data:
+            await self._update_failure(table_config, record_id, "素材图不能为空")
+            return
+        ref_image_url = ref_image_data[0].get("url")
+        if not ref_image_url:
+            await self._update_failure(table_config, record_id, "素材图 url 为空")
+            return
+        ref_image_bytes = await self.dingtalk.download_file(ref_image_url)
+
+        # 4. 按 task_name 查提示词表（与原 batch 逻辑相同）
+        step = "查提示词表"
+        task_name = table_config.task_name
+        prompt_records = await self.dingtalk.list_records(
+            base_id=table_config.base_id,
+            sheet_id=table_config.prompt_table_sheet_id,
+            field="任务名称",
+            value=task_name,
+        )
+        if not prompt_records:
+            await self._update_failure(
+                table_config, record_id,
+                f"提示词表未找到 任务名称={task_name}",
+            )
+            return
+        prompt_fields = prompt_records[0].fields if hasattr(prompt_records[0], "fields") else prompt_records[0].get("fields", {})
+        # 搜推素材：三段式段落源是「扰动列表」字段（不是「提示词」字段）
+        # 「提示词」字段是通用基础描述，作为 base_prompt 拼接
+        prompt_text = _to_text(
+            prompt_fields.get(table_config.prompt_table.perturbations_field)
+        )
+        base_prompt = _to_text(
+            prompt_fields.get(table_config.prompt_table.prompt_field)
+        )
+        if not prompt_text:
+            await self._update_failure(
+                table_config, record_id, "提示词表的扰动列表为空",
+            )
+            return
+        aspect_ratio = _to_text(prompt_fields.get(table_config.prompt_table.aspect_ratio_field))
+        resolution = _to_text(prompt_fields.get(table_config.prompt_table.resolution_field))
+
+        # 5. 解析模型（同原逻辑）
+        step = "解析模型"
+        model = self._resolve_model(fields, table_config, self.settings.ai.default_model)
+
+        # 6. 拆段 + 重组（搜推素材特有）
+        step = "拆解三段式提示词"
+        sections = parse_prompt_sections(prompt_text, table_config.section_titles or {})
+        logger.info(
+            "三段式提示词解析",
+            record_id=record_id,
+            sections_found={k: len(v) for k, v in sections.items()},
+            output_order=table_config.output_order,
+        )
+        # 缺任何一段都直接失败，避免生成不全
+        missing = [t for t in (table_config.output_order or []) if t not in sections]
+        if missing:
+            await self._update_failure(
+                table_config, record_id,
+                f"提示词表缺少段: {', '.join(missing)}",
+            )
+            return
+        # 用 record_id 作为 seed，保证同 record 多次跑结果一致
+        ordered = build_sousuo_prompts(
+            base_prompt=base_prompt,
+            sections=sections,
+            output_order=table_config.output_order or [],
+            count_per_section=table_config.count_per_section,
+            seed=record_id,
+        )
+        indexed = assign_sousuo_index(ordered, table_config.count_per_section)
+        prompts = [p for p, _, _ in indexed]
+        logger.info(
+            "本次搜推素材批量生图配置",
+            record_id=record_id,
+            task_name=task_name,
+            total=len(prompts),
+            indexed=indexed,
+        )
+
+        # 7. 批量生图
+        step = "批量生图"
+        results = await self.generator.generate_batch(
+            model=model,
+            prompts=prompts,
+            reference_image=ref_image_bytes,
+            table_config=table_config,
+            aspect_ratio=aspect_ratio,
+            resolution=resolution,
+        )
+        success_count = sum(1 for r in results if r is not None)
+        if success_count == 0:
+            await self._update_failure(
+                table_config, record_id,
+                f"全部 {len(prompts)} 张生图失败",
+            )
+            return
+
+        # 8. 串行上传 + 自定义命名
+        step = "上传结果"
+        attachments: list[dict] = []
+        upload_errors: list[str] = []
+        for (prompt, tname, idx), img_bytes in zip(indexed, results):
+            if img_bytes is None:
+                continue
+            filename = f"{record_id}_{goods_id}_{shop_code}_{idx}.png"
+            try:
+                att = await self.dingtalk.upload_attachment(
+                    table_config,
+                    img_bytes,
+                    filename,
+                )
+                attachments.append(att)
+            except Exception as e:
+                upload_errors.append(f"{tname}#{idx}上传失败: {e}")
+                logger.error(
+                    "单图上传失败", record_id=record_id,
+                    segment=tname, index=idx, filename=filename, error=str(e),
+                )
+
+        # 9. 回写
+        step = "回写"
+        status_text = f"成功{len(attachments)}/{len(results)}"
+        if upload_errors:
+            status_text += f"; {'; '.join(upload_errors)}"
+        if attachments:
+            # 优先写「附件 + 时间」（这两列一定能写），失败再降级只写附件
+            base_fields = {
+                table_config.result_image_field: attachments,
+                table_config.result_time_field: datetime.now().strftime("%Y-%m-%d %H:%M"),
+            }
+            try:
+                await self.dingtalk.update_record(
+                    table_config,
+                    record_id,
+                    {**base_fields, table_config.result_status_field: status_text},
+                )
+            except Exception as status_err:
+                # 状态字段可能是 singleSelect 枚举（写自由文本会被拒 400），不影响主结果回写
+                logger.warning(
+                    "写状态字段失败，降级只写附件 record_id={} err={}",
+                    record_id, status_err,
+                )
+                try:
+                    await self.dingtalk.update_record(table_config, record_id, base_fields)
+                except Exception:
+                    tb = traceback.format_exc()
+                    logger.error(
+                        "附件回写失败 record_id={} table_key={}\n{}",
+                        record_id, table_config.key, tb,
+                    )
+        else:
+            await self._update_failure(
+                table_config, record_id,
+                f"全部 {len(results)} 张上传失败: {'; '.join(upload_errors)}",
+            )
+            return
+        logger.info(
+            "搜推素材批量生图完成", record_id=record_id,
+            task_name=task_name,
+            success=len(attachments), total=len(results),
+        )
+        logger.info(
+            "搜推素材批量生图耗时",
             record_id=record_id,
             elapsed_sec=round(time.monotonic() - step_start, 2),
         )
