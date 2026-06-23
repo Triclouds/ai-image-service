@@ -1,6 +1,7 @@
 """提示词配置数据模型 + 批量生图的 prompt 构建辅助。"""
 from __future__ import annotations
 
+import random
 import re
 from dataclasses import dataclass, field
 from typing import Any
@@ -132,8 +133,6 @@ def build_prompts(prompt_cfg: PromptConfig) -> list[str]:
 # ============================================================================
 
 
-import re
-
 # 段标题识别正则：行首"一、""二、"等（中文数字+顿号）。
 # 用于快速定位段落起点。
 _SECTION_HEADER_RE = re.compile(r"(?m)^[一二三四五六七八九十]+、.*$")
@@ -211,8 +210,6 @@ def build_sousuo_prompts(
     Returns:
         [(完整prompt, 段名), ...]，长度 ≤ len(output_order) * count_per_section。
     """
-    import random
-
     rng = random.Random(seed)
     out: list[tuple[str, str]] = []
     for type_name in output_order:
