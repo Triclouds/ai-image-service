@@ -23,9 +23,9 @@ def main() -> int:
     if not api_key:
         print("[失败] API_KEY 未配置。请在 .env 或 configs/.env 里设 API_KEY=xxx")
         return 1
-
+# https://alidocs.dingtalk.com/notable/record?dentryUuid=YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb&rowId=HdY99cpqNM&sheetId=6ekHgxC&viewId=2dKYJTs
     url = os.getenv("TEST_URL", "http://localhost:8030/api/v1/generate")
-    record_id = os.getenv("RECORD_ID", "JGoMqsastP")
+    record_id = os.getenv("RECORD_ID", "fEevsvTFEw")
     table_key = os.getenv("TABLE_KEY", "ahmi-batch-action")
     timeout = 10
 
