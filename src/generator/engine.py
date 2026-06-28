@@ -125,8 +125,7 @@ class AIGenerator:
                 )
             else:
                 raise ValueError(f"Unsupported provider: {model_cfg.provider} (model={model})")
-            return _to_png_bytes(raw)
-
+            return raw
         return await self._retry_on_network_error(_do_generate)
 
     async def generate_batch(

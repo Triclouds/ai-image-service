@@ -46,7 +46,7 @@ result_time_field = "生成时间"
 host = "0.0.0.0"
 port = 8030
 log_level = "INFO"
-max_concurrency = 5
+max_concurrency = 2
 
 [ai]
 default_model = "Nano Banana 2"

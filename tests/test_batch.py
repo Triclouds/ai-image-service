@@ -25,7 +25,7 @@ def main() -> int:
         return 1
 # https://alidocs.dingtalk.com/notable/record?dentryUuid=YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb&rowId=HdY99cpqNM&sheetId=6ekHgxC&viewId=2dKYJTs
     url = os.getenv("TEST_URL", "http://localhost:8030/api/v1/generate")
-    record_id = os.getenv("RECORD_ID", "fEevsvTFEw")
+    record_id = os.getenv("RECORD_ID", "Q1KZ112aOW")
     table_key = os.getenv("TABLE_KEY", "ahmi-batch-action")
     timeout = 10
 

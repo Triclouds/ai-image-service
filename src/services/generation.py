@@ -98,6 +98,10 @@ class GenerationService:
                 else:
                     await self._process_single(record_id, table_config)
 
+            except asyncio.CancelledError:
+                if table_config is not None:
+                    await self._update_failure(table_config, record_id, "服务关闭导致任务中断")
+                raise
             except Exception as e:
                 tb = traceback.format_exc()
                 logger.error(f"生图流程异常 record_id={record_id} step={step}\n{tb}")
