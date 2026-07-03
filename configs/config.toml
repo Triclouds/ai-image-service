@@ -150,6 +150,23 @@ batch_mode = true
 task_name = "搜推素材"                            # 提示词表"任务名称"列里精确匹配的值
 prompt_table_sheet_id = "42YsOaT"
 
+# 字段映射（按搜推素材任务表实际列名调整）
+model_field = "生图模型"
+reference_image_field = "素材图"
+result_image_field = "生成结果"
+result_status_field = "状态"                       # ⚠️ singleSelect 字段，见下方说明
+result_time_field = "生成时间"
+style_code_field = "款号"
+
+# 搜推素材特有：三段式提示词 + 自定义文件名（仅本表启用，其他表全为默认）
+prompt_section_mode = true                                                   # 启用分段模式；其他表为 false / 不配置
+section_marker_pattern = "^([一二三四五六七八九十]+)、"                       # 识别"一、" "二、" "三、" 标题
+output_order = ["细节图", "场景图", "白底图"]                                # 序号 1-3/4-6/7-9 顺序
+count_per_section = 3                                                       # 每段抽几张
+shop_code_field = "店铺"                                                     # 店铺编码提取源（singleSelect）
+shop_code_separator = ","                                                   # 取最后 separator 后的部分
+goods_id_field = "商品ID"                                                    # 商品 ID 字段名（用于文件名）
+
 # 任务 B：ahmi搜推素材 sheet（与 zhuozhi-base 同一 base，不同 sheet）
 [[dingtalk.tables]]
 key = "ahmi-sousuo"
