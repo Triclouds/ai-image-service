@@ -43,48 +43,72 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: 安装 SSH 工具
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq sshpass
+
       - name: 同步配置文件到服务器
-        uses: appleboy/scp-action@v1.0.0
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          port: ${{ secrets.SERVER_PORT || 22 }}
-          source: "docker-compose.yml,configs/config.toml"
-          target: "${{ secrets.SERVER_PROJECT_PATH || '/home/deployer/projects/ai-image-service' }}"
-          debug: true
-          timeout: 60s
-          command_timeout: 5m
+        shell: bash
+        env:
+          SSHPASS: ${{ secrets.SERVER_PASSWORD }}
+        run: |
+          HOST="${{ secrets.SERVER_HOST }}"
+          USER="${{ secrets.SERVER_USER }}"
+          PORT="${{ secrets.SERVER_PORT || 22 }}"
+          TARGET="${{ secrets.SERVER_PROJECT_PATH || '/home/deployer/projects/ai-image-service' }}"
+          SSH_OPTS="-o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -o ServerAliveInterval=5"
+
+          for i in $(seq 1 3); do
+            echo "SCP attempt $i/3..."
+            sshpass -e scp $SSH_OPTS -P "$PORT" \
+              docker-compose.yml configs/config.toml \
+              "$USER@$HOST:$TARGET/" 2>&1 && break
+            echo "SCP failed, waiting $((i * 10))s before retry..."
+            sleep $((i * 10))
+            [ "$i" -eq 3 ] && echo "SCP failed after 3 attempts" && exit 1
+          done
 
       - name: 部署到服务器
-        uses: appleboy/ssh-action@v1.0.3
-        with:
-          host: ${{ secrets.SERVER_HOST }}
-          username: ${{ secrets.SERVER_USER }}
-          password: ${{ secrets.SERVER_PASSWORD }}
-          port: ${{ secrets.SERVER_PORT || 22 }}
-          script: |
-            cd ${{ secrets.SERVER_PROJECT_PATH || '/home/deployer/projects/ai-image-service' }}
+        shell: bash
+        env:
+          SSHPASS: ${{ secrets.SERVER_PASSWORD }}
+          REPO_OWNER_LOWER: ${{ env.REPO_OWNER_LOWER }}
+        run: |
+          HOST="${{ secrets.SERVER_HOST }}"
+          USER="${{ secrets.SERVER_USER }}"
+          PORT="${{ secrets.SERVER_PORT || 22 }}"
+          TARGET="${{ secrets.SERVER_PROJECT_PATH || '/home/deployer/projects/ai-image-service' }}"
+          SSH_OPTS="-o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 -o ServerAliveInterval=5"
 
-            # 创建或更新 .env 文件
-            cat > .env << 'EOF'
-            DINGTALK_APP_KEY=${{ secrets.DINGTALK_APP_KEY }}
-            DINGTALK_APP_SECRET=${{ secrets.DINGTALK_APP_SECRET }}
-            DINGTALK_OPERATOR_ID=${{ secrets.DINGTALK_OPERATOR_ID }}
-            API_KEY=${{ secrets.API_KEY }}
-            ZHUOZHI_IMAGE_API_KEY=${{ secrets.ZHUOZHI_IMAGE_API_KEY }}
-            HUAPU_IMAGE_API_KEY=${{ secrets.HUAPU_IMAGE_API_KEY }}
-            AHMI_IMAGE_API_KEY=${{ secrets.AHMI_IMAGE_API_KEY }}
-            EOF
+          deploy_script() {
+            sshpass -e ssh $SSH_OPTS -p "$PORT" "$USER@$HOST" bash -s << REMOTE_SCRIPT
+          set -e
+          cd $TARGET || { echo "ERROR: target dir not found: $TARGET"; exit 1; }
 
-            chmod 600 .env
+          cat > .env << 'ENVEOF'
+          DINGTALK_APP_KEY=${{ secrets.DINGTALK_APP_KEY }}
+          DINGTALK_APP_SECRET=${{ secrets.DINGTALK_APP_SECRET }}
+          DINGTALK_OPERATOR_ID=${{ secrets.DINGTALK_OPERATOR_ID }}
+          API_KEY=${{ secrets.API_KEY }}
+          ZHUOZHI_IMAGE_API_KEY=${{ secrets.ZHUOZHI_IMAGE_API_KEY }}
+          HUAPU_IMAGE_API_KEY=${{ secrets.HUAPU_IMAGE_API_KEY }}
+          AHMI_IMAGE_API_KEY=${{ secrets.AHMI_IMAGE_API_KEY }}
+          ENVEOF
+          chmod 600 .env
 
-            # 登录镜像代理
-            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.milu.moe -u ${{ env.REPO_OWNER_LOWER }} --password-stdin > /dev/null 2>&1 || true
+          echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.milu.moe -u $REPO_OWNER_LOWER --password-stdin > /dev/null 2>&1 || true
 
-            # 如果 logs 目录不存在才创建
-            test ! -d logs && (mkdir logs && chmod 777 logs)
+          test ! -d logs && (mkdir logs && chmod 777 logs)
 
-            docker compose pull
-            docker compose up -d
-            docker image prune --filter 'until=24h' -f
+          docker compose pull
+          docker compose up -d
+          docker image prune --filter 'until=24h' -f
+          REMOTE_SCRIPT
+          }
+
+          for i in $(seq 1 3); do
+            echo "SSH deploy attempt $i/3..."
+            deploy_script && break
+            echo "SSH deploy failed, waiting $((i * 10))s before retry..."
+            sleep $((i * 10))
+            [ "$i" -eq 3 ] && echo "SSH deploy failed after 3 attempts" && exit 1
+          done
