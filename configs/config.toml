@@ -153,15 +153,15 @@ prompt_table_sheet_id = "42YsOaT"
 # 字段映射（按搜推素材任务表实际列名调整）
 model_field = "生图模型"
 reference_image_field = "素材图"
-result_image_field = "生成结果"
-result_status_field = "状态"                       # ⚠️ singleSelect 字段，见下方说明
+result_image_field = "场景图"                                                # 图片回传字段（已从"生成结果"改为"场景图"）
+result_status_field = "生成结果"                                             # 状态回传字段（原"状态"是 singleSelect，改用文本字段）
 result_time_field = "生成时间"
 style_code_field = "款号"
 
 # 搜推素材特有：三段式提示词 + 自定义文件名（仅本表启用，其他表全为默认）
 prompt_section_mode = true                                                   # 启用分段模式；其他表为 false / 不配置
 section_marker_pattern = "^([一二三四五六七八九十]+)、"                       # 识别"一、" "二、" "三、" 标题
-output_order = ["细节图", "场景图", "白底图"]                                # 序号 1-3/4-6/7-9 顺序
+output_order = ["场景图"]                                                    # 只输出场景图一段，3 张连续编号 1-3
 count_per_section = 3                                                       # 每段抽几张
 shop_code_field = "店铺"                                                     # 店铺编码提取源（singleSelect）
 shop_code_separator = ","                                                   # 取最后 separator 后的部分
@@ -171,6 +171,9 @@ goods_id_field = "商品ID"                                                    #
 "一、" = "白底图"
 "二、" = "场景图"
 "三、" = "细节图"
+"场景图、" = "场景图"      # 兼容新格式：段名直接放在标题里（不带"一、""二、"序号）
+"白底图、" = "白底图"
+"细节图、" = "细节图"
 
 [dingtalk.tables.prompt_table]
 prompt_field = "提示词"
@@ -181,10 +184,5 @@ resolution_field = "分辨率"
 perturbations_field = "扰动列表"
 
 # 说明：
-# "状态" 字段是 singleSelect 枚举类型（待生成/已确认/已上传 等业务侧语义），
-# 现有 _update_failure 写 "成功"/"失败: ..." 字符串对该字段可能写入失败，
-# 但被 _update_failure 内部 try/except 兜住，仅记 warning，不影响生图主流程。
-# 业务如需在"状态"字段精确反映生图结果，可后续：
-#   1) 在钉钉端给"状态"字段新增"生图成功"/"生图失败"枚举值；并
-#   2) 在 config 里把 result_status_field 改成接收新枚举值的字段，或扩展 TableConfig + _update_failure。
-# 当前 PR 不动 Python 代码，避免影响其他表格（zhuozhi-base/huapu-base/ahmi-base/ahmi-batch-action）的状态写回语义。
+# 状态字段由"状态"（singleSelect）改为"生成结果"（文本字段），
+# 写回字符串"成功N/M"或"失败: ..."与 zhuozhi-base 等表对齐，无需枚举对齐。

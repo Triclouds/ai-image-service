@@ -30,7 +30,7 @@ async def main() -> int:
 
     # 解析附件字段
     attachments = fields.get(table_config.result_image_field) or []
-    print(f"\n=== 附件（生成结果字段，{len(attachments)} 张）===")
+    print(f"\n=== 附件（场景图字段，{len(attachments)} 张）===")
     for i, att in enumerate(attachments, 1):
         fname = att.get("filename", "?")
         size = att.get("size", 0)

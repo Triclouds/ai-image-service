@@ -3,10 +3,10 @@
 
 程序自动从 zhuozhi-sousuo 表找一条素材图已填的记录，跑完整流程：
   1. get_record 拉生图表数据
-  2. 拆段 + 随机抽样 9 个 prompt
-  3. generate_batch 调 AI 生成 9 张
-  4. upload_attachment × 9 到 zhuozhi-sousuo 表附件字段
-  5. update_record 写"成功 9/9" + 生成时间
+  2. 拆段 + 随机抽样 3 个 prompt（当前只配"场景图"一段）
+  3. generate_batch 调 AI 生成 3 张
+  4. upload_attachment × 3 到 zhuozhi-sousuo 表"场景图"字段
+  5. update_record 写"成功 3/3"到"生成结果"字段 + 生成时间
 完成后去钉钉表那条记录看结果。
 
 凭证加载顺序（与主应用一致）：
@@ -190,13 +190,13 @@ async def main() -> int:
     print(f"  result_time_field  ({table_config.result_time_field}): {gen_time}")
     print()
 
-    if len(attachments) == 9 and "成功" in str(status):
-        print("[OK] 9 张图全部上传成功，去钉钉表查看吧：")
+    if len(attachments) == 3 and "成功" in str(status):
+        print("[OK] 3 张图全部上传成功，去钉钉表查看吧：")
         print(f"     https://alidocs.dingtalk.com/i/notable/?baseId={table_config.base_id}&sheetId={table_config.sheet_id}&rowId={record_id}")
         return 0
 
-    if len(attachments) == 9:
-        print("[OK] 9 张图全部上传成功（状态字段是 singleSelect 枚举，未写入 '成功9/9'）。")
+    if len(attachments) == 3:
+        print("[OK] 3 张图全部上传成功（状态字段是 singleSelect 枚举，未写入 '成功3/3'）。")
         print("     去钉钉表看附件即可：")
         print(f"     https://alidocs.dingtalk.com/i/notable/?baseId={table_config.base_id}&sheetId={table_config.sheet_id}&rowId={record_id}")
         return 0
