@@ -43,7 +43,7 @@ async def test_generate_batch_all_success_preserves_order(mock_settings):
     gen = AIGenerator(mock_settings)
     bytes_seq = [b"img_1", b"img_2", b"img_3"]
 
-    async def fake_generate(model, prompt, reference_image=None, table_config=None):
+    async def fake_generate(model, prompt, reference_image=None, table_config=None, **kwargs):
         # 按 prompt 后缀取对应 bytes
         idx = int(prompt.split("_")[1]) - 1
         return bytes_seq[idx]
@@ -64,7 +64,7 @@ async def test_generate_batch_partial_failure_returns_none(mock_settings):
     """单张失败 → 返回 [None, ...]。"""
     gen = AIGenerator(mock_settings)
 
-    async def fake_generate(model, prompt, reference_image=None, table_config=None):
+    async def fake_generate(model, prompt, reference_image=None, table_config=None, **kwargs):
         if prompt == "bad":
             raise ValueError("boom")
         return prompt.encode()
@@ -90,7 +90,7 @@ async def test_generate_batch_concurrency_limit_enforced(mock_settings):
     max_in_flight = 0
     lock = asyncio.Lock()
 
-    async def fake_generate(model, prompt, reference_image=None, table_config=None):
+    async def fake_generate(model, prompt, reference_image=None, table_config=None, **kwargs):
         nonlocal in_flight, max_in_flight
         async with lock:
             in_flight += 1

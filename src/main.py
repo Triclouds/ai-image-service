@@ -1,5 +1,8 @@
 """FastAPI 应用入口。"""
 
+import asyncio
+import signal
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -25,7 +28,19 @@ async def lifespan(app: FastAPI):
         port=settings.server.port,
         log_level=settings.server.log_level,
     )
+    shutdown_event = asyncio.Event()
+    loop = asyncio.get_running_loop()
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            loop.add_signal_handler(sig, shutdown_event.set)
+        except (NotImplementedError, RuntimeError):
+            pass  # Windows 不支持 SIGTERM 的 signal handler
     yield
+    logger.info("收到关闭信号，等待现有任务完成（最长 30s）...")
+    try:
+        await asyncio.wait_for(shutdown_event.wait(), timeout=30)
+    except asyncio.TimeoutError:
+        logger.warning("等待超时，强制关闭")
     logger.info("服务关闭")
 
 

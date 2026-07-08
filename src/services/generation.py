@@ -98,6 +98,10 @@ class GenerationService:
                 else:
                     await self._process_single(record_id, table_config)
 
+            except asyncio.CancelledError:
+                if table_config is not None:
+                    await self._update_failure(table_config, record_id, "服务关闭导致任务中断")
+                raise
             except Exception as e:
                 tb = traceback.format_exc()
                 logger.error(f"生图流程异常 record_id={record_id} step={step}\n{tb}")
@@ -203,7 +207,8 @@ class GenerationService:
         - table_config.prompt_section_mode=True → 走 _process_batch_sousuo
           （三段式：每段 6 候选里抽 3 张，按 output_order 输出连续编号；
            当前 zhuozhi-sousuo 只配 "场景图"，输出 1-3 共 3 张）
-        - 否则 → 走原 8 步逻辑（ahmi-batch-action 等）
+=======
+          （三段式：每段 6 候选里抽 3 张，按 output_order 编号 1-9）
         """
         # 0. 分流：搜推素材三段式（仅 zhuozhi-sousuo 启用）
         if table_config.prompt_section_mode:

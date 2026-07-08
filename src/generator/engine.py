@@ -6,8 +6,22 @@
 import asyncio
 import base64
 import io
+import random
 
 import httpx
+
+try:
+    import aiohttp
+    _AIOHTTP_NETWORK_ERRORS = (aiohttp.ClientError,)
+except ImportError:
+    _AIOHTTP_NETWORK_ERRORS = ()
+
+_NETWORK_RETRY_ERRORS = (
+    httpx.ConnectError,
+    httpx.TimeoutException,
+    httpx.NetworkError,
+    httpx.RemoteProtocolError,
+) + _AIOHTTP_NETWORK_ERRORS
 from google import genai
 from google.genai import types
 from loguru import logger
@@ -47,6 +61,7 @@ class AIGenerator:
 
     def __init__(self, settings: Settings):
         self.settings = settings
+        self._genai_clients: dict[str, genai.Client] = {}
 
     async def _retry_on_network_error(self, func, *args, **kwargs):
         """网络异常重试装饰器逻辑。"""
@@ -56,7 +71,7 @@ class AIGenerator:
         for attempt in range(max_retries + 1):
             try:
                 return await func(*args, **kwargs)
-            except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
+            except _NETWORK_RETRY_ERRORS as e:
                 last_error = e
                 if attempt < max_retries:
                     await asyncio.sleep(initial_delay)
@@ -110,8 +125,7 @@ class AIGenerator:
                 )
             else:
                 raise ValueError(f"Unsupported provider: {model_cfg.provider} (model={model})")
-            return _to_png_bytes(raw)
-
+            return raw
         return await self._retry_on_network_error(_do_generate)
 
     async def generate_batch(
@@ -128,28 +142,48 @@ class AIGenerator:
         API Key 通过 table_config.image_api_key_env 解析。
         内部用 Semaphore 限制并发数（_BATCH_CONCURRENCY）。
         aspect_ratio / resolution 对每张图相同，透传到 generate()。
+        单张传输层异常重试 1 次（退避 1s），两次均失败则转为 None。
         """
         if not prompts:
             return []
 
         semaphore = asyncio.Semaphore(self._BATCH_CONCURRENCY)
 
-        async def _one(idx: int, prompt: str) -> bytes | None:
-            try:
-                async with semaphore:
-                    return await self.generate(
-                        model=model, prompt=prompt,
-                        reference_image=reference_image,
-                        table_config=table_config,
-                        aspect_ratio=aspect_ratio,
-                        resolution=resolution,
-                    )
-            except Exception as e:
-                logger.warning("单图生成失败", index=idx, error=str(e))
-                return None
+        async def _one(idx: int, prompt: str) -> bytes:
+            last_error = None
+            for attempt in range(2):  # 首次 + 1 次重试
+                try:
+                    async with semaphore:
+                        return await self.generate(
+                            model=model, prompt=prompt,
+                            reference_image=reference_image,
+                            table_config=table_config,
+                            aspect_ratio=aspect_ratio,
+                            resolution=resolution,
+                        )
+                except _NETWORK_RETRY_ERRORS as e:
+                    last_error = e
+                    if attempt == 0:
+                        logger.warning(
+                            "单图生成失败，1s后重试",
+                            index=idx, error=str(e),
+                        )
+                        await asyncio.sleep(1.0)
+            # 重试耗尽，抛出完整异常
+            raise last_error  # type: ignore[misc]
 
-        results = await asyncio.gather(*[_one(i, p) for i, p in enumerate(prompts)])
-        return list(results)
+        results = await asyncio.gather(
+            *[_one(i, p) for i, p in enumerate(prompts)],
+            return_exceptions=True,
+        )
+        processed: list[bytes | None] = []
+        for i, r in enumerate(results):
+            if isinstance(r, BaseException):
+                logger.warning("单图生成失败", index=i, error=str(r))
+                processed.append(None)
+            else:
+                processed.append(r)
+        return processed
 
     async def _generate_nano(
         self,
@@ -165,10 +199,7 @@ class AIGenerator:
 
         aspect_ratio / resolution 任一非空时构造 image_config，否则 config=None 走 SDK 默认。
         """
-        client = genai.Client(
-            api_key=api_key,
-            http_options={"base_url": base_url},
-        ).aio
+        client = self._get_genai_client(api_key, base_url).aio
         pil_image = Image.open(io.BytesIO(image_bytes))
 
         # 仅在用户提供比例/分辨率时才加 image_config，避免空 ImageConfig() 触发 SDK 校验
@@ -222,3 +253,19 @@ class AIGenerator:
             size=size,
         )
         return base64.b64decode(response.data[0].b64_json)
+
+    def _get_genai_client(self, api_key: str, base_url: str) -> genai.Client:
+        """按 base_url + api_key 前缀缓存 Client，复用连接池。"""
+        cache_key = f"{base_url}:{api_key[:8]}"
+        if cache_key not in self._genai_clients:
+            self._genai_clients[cache_key] = genai.Client(
+                api_key=api_key,
+                http_options={"base_url": base_url},
+            )
+        return self._genai_clients[cache_key]
+
+    async def close(self) -> None:
+        """关闭所有缓存的 genai Client，释放底层连接池。"""
+        for client in self._genai_clients.values():
+            await client.aio.close()
+        self._genai_clients.clear()

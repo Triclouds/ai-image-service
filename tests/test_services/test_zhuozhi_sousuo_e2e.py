@@ -97,7 +97,7 @@ def test_parse_prompt_sections_empty():
     assert parse_prompt_sections("", SECTION_TITLES) == {}
     assert parse_prompt_sections(PROMPT_TEXT, {}) == {}
 
-
+    
 def test_parse_prompt_sections_new_format():
     """新格式：段标题直接是段名 + 「、」，不带「一、」「二、」序号。
 
