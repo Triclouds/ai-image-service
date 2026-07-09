@@ -206,9 +206,8 @@ class GenerationService:
         分流：
         - table_config.prompt_section_mode=True → 走 _process_batch_sousuo
           （三段式：每段 6 候选里抽 3 张，按 output_order 输出连续编号；
-           当前 zhuozhi-sousuo 只配 "场景图"，输出 1-3 共 3 张）
-=======
-          （三段式：每段 6 候选里抽 3 张，按 output_order 编号 1-9）
+           zhuozhi-sousuo / ahmi-sousuo 当前都只配 "场景图"，输出 1-3 共 3 张）
+        - 否则 → 走原 8 步逻辑（ahmi-batch-action 等）
         """
         # 0. 分流：搜推素材三段式（仅 zhuozhi-sousuo 启用）
         if table_config.prompt_section_mode:
@@ -358,14 +357,14 @@ class GenerationService:
 
     # ========================================================================
     # 搜推素材三段式：长文本按段标题拆段，每段 6 候选里抽 3 张，
-    # 按 output_order 连续编号（当前 zhuozhi-sousuo 只配 "场景图" → 1-3），
+    # 按 output_order 连续编号（zhuozhi-sousuo / ahmi-sousuo 当前都只配 "场景图" → 1-3），
     # 文件名 {record_id}_{goods_id}_{shop_code}_{idx}.png
     # ========================================================================
 
     async def _process_batch_sousuo(
         self, record_id: str, table_config: TableConfig
     ) -> None:
-        """搜推素材三段式批量生图（仅 zhuozhi-sousuo 启用）。"""
+        """搜推素材三段式批量生图（zhuozhi-sousuo / ahmi-sousuo 启用）。"""
         step_start = time.monotonic()
 
         # 1. 取生图表记录
