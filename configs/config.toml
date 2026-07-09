@@ -199,7 +199,7 @@ prompt_table_sheet_id = "jzFYB7x"
 model_field = "生图模型"
 reference_image_field = "素材图"
 result_image_field = "场景图"                                                # 图片回传字段（已从"生成结果"改为"场景图"）
-result_status_field = "生成结果"                                             # 状态回传字段（原"状态"是 singleSelect，改用文本字段）
+result_status_field = "生成结果"                                             # 状态回传字段（与 zhuozhi-sousuo 统一）
 result_time_field = "生成时间"
 style_code_field = "款号"
 
