@@ -177,6 +177,13 @@ aspect_ratio_field = "生成比例"
 resolution_field = "分辨率"
 perturbations_field = "扰动列表"
 
+# zhuozhi-sousuo 专用 section_titles（TOML 作用域：归属上面的 [[dingtalk.tables]] 块）
+# ⚠️ 必须放在 ahmi-sousuo 之前，否则 TOML 会让它归属到 ahmi-sousuo
+[dingtalk.tables.section_titles]
+"场景图、" = "场景图"
+"白底图、" = "白底图"
+"细节图、" = "细节图"
+
 # 任务 B：ahmi搜推素材 sheet（与 zhuozhi-base 同一 base，不同 sheet）
 [[dingtalk.tables]]
 key = "ahmi-sousuo"
