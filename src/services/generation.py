@@ -208,6 +208,7 @@ class GenerationService:
           （三段式：每段 6 候选里抽 3 张，按 output_order 输出连续编号；
            zhuozhi-sousuo / ahmi-sousuo 当前都只配 "场景图"，输出 1-3 共 3 张）
         - 否则 → 走原 8 步逻辑（ahmi-batch-action 等）
+           当前 zhuozhi-sousuo 只配 "场景图"，输出 1-3 共 3 张）
         """
         # 0. 分流：搜推素材三段式（仅 zhuozhi-sousuo 启用）
         if table_config.prompt_section_mode:
