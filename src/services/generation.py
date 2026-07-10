@@ -429,6 +429,20 @@ class GenerationService:
         aspect_ratio = _to_text(prompt_fields.get(table_config.prompt_table.aspect_ratio_field))
         resolution = _to_text(prompt_fields.get(table_config.prompt_table.resolution_field))
 
+        # 4.5. 读生成数量（提示词表「生成数量」字段，缺省回落 table_config.count_per_section）
+        # 钉钉单元格里「生成数量」通常是字符串（"6"）或数字 6，统一转 int
+        count_raw = prompt_fields.get(table_config.prompt_table.count_field)
+        try:
+            count_per_section = int(count_raw) if count_raw not in (None, "") else 0
+        except (TypeError, ValueError):
+            count_per_section = 0
+        if count_per_section <= 0:
+            count_per_section = table_config.count_per_section
+            logger.warning(
+                "提示词表「生成数量」无效（{!r}），回落 table_config.count_per_section={}",
+                count_raw, count_per_section,
+            )
+
         # 5. 解析模型（同原逻辑）
         step = "解析模型"
         model = self._resolve_model(fields, table_config, self.settings.ai.default_model)
@@ -441,6 +455,7 @@ class GenerationService:
             record_id=record_id,
             sections_found={k: len(v) for k, v in sections.items()},
             output_order=table_config.output_order,
+            count_per_section=count_per_section,
         )
         # 缺任何一段都直接失败，避免生成不全
         missing = [t for t in (table_config.output_order or []) if t not in sections]
@@ -455,10 +470,10 @@ class GenerationService:
             base_prompt=base_prompt,
             sections=sections,
             output_order=table_config.output_order or [],
-            count_per_section=table_config.count_per_section,
+            count_per_section=count_per_section,
             seed=record_id,
         )
-        indexed = assign_sousuo_index(ordered, table_config.count_per_section)
+        indexed = assign_sousuo_index(ordered, count_per_section)
         prompts = [p for p, _, _ in indexed]
         logger.info(
             "本次搜推素材批量生图配置",
