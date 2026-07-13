@@ -52,8 +52,8 @@ max_concurrency = 2
 default_model = "Nano Banana 2"
 
 [ai.retry]
-initial_delay = 3
-max_retries = 3
+initial_delay = 2
+max_retries = 1
 
 [ai.model."Nano Banana Pro"]
 base_url = "https://api.vectorengine.ai"
