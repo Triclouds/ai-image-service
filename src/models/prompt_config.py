@@ -248,3 +248,50 @@ def assign_sousuo_index(
         (prompt, tname, idx + 1)
         for idx, (prompt, tname) in enumerate(ordered_segments)
     ]
+
+
+# ============================================================================
+# 基础素材模块：类目匹配 + 场景图随机选
+# ============================================================================
+
+
+def find_category_prompt(items: list[str], category: str) -> str | None:
+    """在段落子项中查找匹配类目的提示词。
+
+    items 来自 parse_prompt_sections 的输出片段，
+    格式如 ["短袖T恤: 一张短袖T恤的正面平铺图...", "连衣裙: 一张连衣裙..."]
+    每条子项为 "类目名: 提示词正文" 格式。
+
+    Args:
+        items: 某一段落的子项列表（如白底图段落的所有子项）。
+        category: 类目名，如 "短袖T恤"。与冒号前的文本完全匹配。
+
+    Returns:
+        去掉 "类目名: " 前缀后的提示词正文；未匹配到返回 None。
+    """
+    for item in items:
+        if ":" not in item:
+            continue
+        cat, prompt_text = item.split(":", 1)
+        if cat.strip() == category:
+            return prompt_text.strip()
+    return None
+
+
+def pick_random_scene_prompt(items: list[str]) -> tuple[str, int] | None:
+    """从场景图子项中随机选 1 条，返回 (去编号后的提示词, 编号)。
+
+    items 格式: ["1. 一位模特穿着...", "2. 一位模特穿着...", ...]
+
+    Args:
+        items: 场景图段落的所有子项。
+
+    Returns:
+        (去掉了编号前缀的提示词正文, 编号如 1/2/3)。
+        如果 items 为空返回 None。
+    """
+    if not items:
+        return None
+    chosen = random.choice(items)
+    idx = _extract_pert_number(chosen) or 1
+    return (_strip_pert_number(chosen), idx)
