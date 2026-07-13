@@ -21,7 +21,9 @@ from models.prompt_config import (
     assign_sousuo_index,
     build_prompts,
     build_sousuo_prompts,
+    find_category_prompt,
     parse_prompt_sections,
+    pick_random_scene_prompt,
 )
 
 
@@ -214,6 +216,11 @@ class GenerationService:
             await self._process_batch_sousuo(record_id, table_config)
             return
 
+        # 0a. 分流：基础素材模块（仅 zhuozhi-baseMaterial 启用）
+        if table_config.base_material_mode:
+            await self._process_batch_base_material(record_id, table_config)
+            return
+
         step_start = time.monotonic()
 
         # 1. 取生图表记录
@@ -356,6 +363,313 @@ class GenerationService:
         )
 
     # ========================================================================
+    # 基础素材模块：单表三图按需生图（zhuozhi-baseMaterial 启用）
+    # ========================================================================
+
+    async def _process_batch_base_material(
+        self, record_id: str, table_config: TableConfig
+    ) -> None:
+        """基础素材按需生图：白底图/透明图/场景图，三图独立判断已有则跳过。
+
+        前置条件：table_config.base_material_mode=True 且启动时校验通过。
+
+        三部判断逻辑：
+        (1) 白底图已有 → 跳过；否则按类目匹配提示词生成 → 上传 {goodsId}_白底图.png → 回写
+        (2) 透明图已有 → 跳过；否则按类目匹配提示词生成 → 上传 {goodsId}_透明图.png → 回写
+        (3) 场景图已有 → 跳过；否则从1-10中随机选提示词 → 上传 {goodsId}_场景图.png → 回写
+
+        三图并发控制：通过 Semaphore（复用父类的 max_concurrency）限制，
+        三张图依次执行，不抢占并发槽位。
+        """
+        step_start = time.monotonic()
+
+        # 1. 取基础素材表格记录
+        step = "获取记录数据"
+        record = await self.dingtalk.get_record(table_config, record_id)
+        fields = record.get("fields", {})
+        goods_id = (
+            _to_text(fields.get(table_config.goods_id_field))
+            if table_config.goods_id_field else record_id
+        )
+        category = (
+            _to_text(fields.get(table_config.category_field))
+            if table_config.category_field else ""
+        )
+        model_raw = fields.get(table_config.model_field)
+        logger.info(
+            "基础素材流程开始",
+            record_id=record_id, goods_id=goods_id,
+            category=category, model=model_raw,
+        )
+
+        # 2. 检查三图已有状态
+        wb_field = table_config.white_bg_image_field
+        tp_field = table_config.transparent_image_field
+        sc_field = table_config.scene_image_field
+        white_bg_exists = bool(fields.get(wb_field)) if wb_field else False
+        transparent_exists = bool(fields.get(tp_field)) if tp_field else False
+        scene_exists = bool(fields.get(sc_field)) if sc_field else False
+        logger.info(
+            "基础素材已有图片状态",
+            record_id=record_id,
+            white_bg=white_bg_exists,
+            transparent=transparent_exists,
+            scene=scene_exists,
+        )
+
+        # 三张图都已存在 → 直接返回
+        if white_bg_exists and transparent_exists and scene_exists:
+            logger.info("三图均已存在，无生成任务", record_id=record_id)
+            await self.dingtalk.update_record(
+                table_config,
+                record_id,
+                {
+                    table_config.result_status_field: "无生成任务",
+                    table_config.result_time_field: datetime.now().strftime("%Y-%m-%d %H:%M"),
+                },
+            )
+            return
+
+        # 3. 下载素材图（只要还有需要生成的图）
+        step = "下载素材图"
+        ref_image_data = fields.get(table_config.reference_image_field)
+        if not isinstance(ref_image_data, list) or not ref_image_data:
+            await self._update_failure(table_config, record_id, "素材图不能为空")
+            return
+        ref_image_url = ref_image_data[0].get("url")
+        if not ref_image_url:
+            await self._update_failure(table_config, record_id, "素材图 url 为空")
+            return
+        ref_image_bytes = await self.dingtalk.download_file(ref_image_url)
+
+        # 4. 查提示词表（按 task_name 过滤）
+        step = "查提示词表"
+        task_name = table_config.task_name
+        prompt_records = await self.dingtalk.list_records(
+            base_id=table_config.base_id,
+            sheet_id=table_config.prompt_table_sheet_id,
+            field="任务名称",
+            value=task_name,
+        )
+        if not prompt_records:
+            await self._update_failure(
+                table_config, record_id,
+                f"提示词表未找到 任务名称={task_name}",
+            )
+            return
+        prompt_fields = (
+            prompt_records[0].fields
+            if hasattr(prompt_records[0], "fields")
+            else prompt_records[0].get("fields", {})
+        )
+        prompt_text = _to_text(
+            prompt_fields.get(table_config.prompt_table.perturbations_field)
+        )
+        if not prompt_text:
+            await self._update_failure(
+                table_config, record_id, "提示词表的扰动列表为空",
+            )
+            return
+
+        # 5. 拆段：按"一、""二、""三、" 拆分为 {白底图: [...], 透明图: [...], 场景图: [...]}
+        step = "拆解三段式提示词"
+        sections = parse_prompt_sections(prompt_text, table_config.section_titles or {})
+        logger.info(
+            "基础素材三段式解析",
+            record_id=record_id,
+            sections_found={k: len(v) for k, v in sections.items()},
+        )
+
+        # 6. 解析模型
+        step = "解析模型"
+        model = self._resolve_model(fields, table_config, self.settings.ai.default_model)
+
+        # 7. 按需逐图生成
+        step = "逐图生成"
+        attachments: dict[str, dict] = {}  # {字段名: 附件信息}
+        success_list: list[str] = []
+        failure_list: list[str] = []
+
+        # --- 7a. 白底图 ---
+        if not white_bg_exists:
+            await self._generate_base_material_image(
+                record_id=record_id,
+                table_config=table_config,
+                section_name="白底图",
+                category=category,
+                sections=sections,
+                model=model,
+                ref_image_bytes=ref_image_bytes,
+                goods_id=goods_id,
+                aspect_ratio="1:1",
+                attachments=attachments,
+                success_list=success_list,
+                failure_list=failure_list,
+                target_field=table_config.white_bg_image_field or "",
+                file_suffix="白底图",
+            )
+
+        # --- 7b. 透明图 ---
+        if not transparent_exists:
+            await self._generate_base_material_image(
+                record_id=record_id,
+                table_config=table_config,
+                section_name="透明图",
+                category=category,
+                sections=sections,
+                model=model,
+                ref_image_bytes=ref_image_bytes,
+                goods_id=goods_id,
+                aspect_ratio="1:1",
+                attachments=attachments,
+                success_list=success_list,
+                failure_list=failure_list,
+                target_field=table_config.transparent_image_field or "",
+                file_suffix="透明图",
+            )
+
+        # --- 7c. 场景图 ---
+        if not scene_exists:
+            scene_items = sections.get("场景图", [])
+            if not scene_items:
+                failure_list.append("场景图: 提示词表中无场景图段落")
+            else:
+                scene_result = pick_random_scene_prompt(scene_items)
+                if scene_result is None:
+                    failure_list.append("场景图: 提示词表场景图段落为空")
+                else:
+                    scene_prompt, _ = scene_result
+                    logger.info(
+                        "生成场景图",
+                        record_id=record_id, goods_id=goods_id, prompt=scene_prompt[:60],
+                    )
+                    try:
+                        scene_bytes = await self.generator.generate(
+                            model=model,
+                            prompt=scene_prompt,
+                            reference_image=ref_image_bytes,
+                            table_config=table_config,
+                            aspect_ratio="3:4",
+                        )
+                        scene_attach = await self.dingtalk.upload_attachment(
+                            table_config,
+                            scene_bytes,
+                            f"{goods_id}_场景图.png",
+                        )
+                        attachments[table_config.scene_image_field or ""] = scene_attach
+                        success_list.append("场景图")
+                        logger.info("场景图生成上传成功", record_id=record_id, goods_id=goods_id)
+                    except Exception as e:
+                        failure_list.append(f"场景图: {e}")
+                        logger.error("场景图生成失败", record_id=record_id, error=str(e))
+
+        # 8. 回写结果
+        if success_list and not failure_list:
+            status_text = f"成功: {', '.join(success_list)}"
+        elif success_list and failure_list:
+            status_text = f"成功: {', '.join(success_list)}; 失败: {'; '.join(failure_list)}"
+        elif not success_list and failure_list:
+            status_text = f"失败: {'; '.join(failure_list)}"
+        else:
+            # 理论上不会走到这里（前面已有无生成任务的 return）
+            status_text = "无生成任务"
+
+        update_fields: dict[str, object] = {
+            table_config.result_status_field: status_text,
+            table_config.result_time_field: datetime.now().strftime("%Y-%m-%d %H:%M"),
+        }
+        # 附加成功生成的图片
+        for field_key, attach_info in attachments.items():
+            if field_key:
+                update_fields[field_key] = [attach_info]
+
+        if attachments or status_text == "无生成任务":
+            await self.dingtalk.update_record(
+                table_config,
+                record_id,
+                update_fields,
+            )
+        else:
+            await self._update_failure(table_config, record_id, status_text)
+            return
+
+        logger.info(
+            "基础素材流程完成",
+            record_id=record_id, goods_id=goods_id,
+            result=status_text,
+            elapsed_sec=round(time.monotonic() - step_start, 2),
+        )
+
+    async def _generate_base_material_image(
+        self,
+        record_id: str,
+        table_config: TableConfig,
+        section_name: str,
+        category: str,
+        sections: dict[str, list[str]],
+        model: str,
+        ref_image_bytes: bytes,
+        goods_id: str,
+        aspect_ratio: str,
+        attachments: dict[str, dict],
+        success_list: list[str],
+        failure_list: list[str],
+        target_field: str,
+        file_suffix: str,
+    ) -> None:
+        """基础素材单项生成：按类目匹配提示词 → 生图 → 上传。
+
+        作为 _process_batch_base_material 的子步骤复用，白底图和透明图共用此方法，
+        场景图走独立的随机逻辑。
+        """
+        items = sections.get(section_name, [])
+        if not items:
+            failure_list.append(f"{section_name}: 提示词表中无{section_name}段落")
+            return
+
+        if not category:
+            failure_list.append(f"{section_name}: 类目字段为空，无法匹配合适的提示词")
+            return
+
+        matched_prompt = find_category_prompt(items, category)
+        if matched_prompt is None:
+            failure_list.append(f"{section_name}: 未找到类目[{category}]的提示词")
+            return
+
+        logger.info(
+            "生成{}", section_name,
+            record_id=record_id, goods_id=goods_id,
+            category=category,
+            prompt=matched_prompt[:60],
+        )
+        try:
+            img_bytes = await self.generator.generate(
+                model=model,
+                prompt=matched_prompt,
+                reference_image=ref_image_bytes,
+                table_config=table_config,
+                aspect_ratio=aspect_ratio,
+            )
+            attach_info = await self.dingtalk.upload_attachment(
+                table_config,
+                img_bytes,
+                f"{goods_id}_{file_suffix}.png",
+            )
+            if target_field:
+                attachments[target_field] = attach_info
+            success_list.append(section_name)
+            logger.info(
+                "{}生成上传成功", section_name,
+                record_id=record_id, goods_id=goods_id,
+            )
+        except Exception as e:
+            failure_list.append(f"{section_name}: {e}")
+            logger.error(
+                "{}生成失败", section_name,
+                record_id=record_id, error=str(e),
+            )
+
+    # ========================================================================
     # 搜推素材三段式：长文本按段标题拆段，每段 6 候选里抽 3 张，
     # 按 output_order 连续编号（zhuozhi-sousuo / ahmi-sousuo 当前都只配 "场景图" → 1-3），
     # 文件名 {record_id}_{goods_id}_{shop_code}_{idx}.png
@@ -412,7 +726,11 @@ class GenerationService:
                 f"提示词表未找到 任务名称={task_name}",
             )
             return
-        prompt_fields = prompt_records[0].fields if hasattr(prompt_records[0], "fields") else prompt_records[0].get("fields", {})
+        prompt_fields = (
+            prompt_records[0].fields
+            if hasattr(prompt_records[0], "fields")
+            else prompt_records[0].get("fields", {})
+        )
         # 搜推素材：三段式段落源是「扰动列表」字段（不是「提示词」字段）
         # 「提示词」字段是通用基础描述，作为 base_prompt 拼接
         prompt_text = _to_text(

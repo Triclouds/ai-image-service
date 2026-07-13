@@ -62,6 +62,13 @@ class TableConfig(BaseModel):
     result_status_field: str = "生成结果"
     result_time_field: str = "生成时间"
 
+    # 基础素材模式（与 prompt_section_mode 同级，互不干扰）
+    base_material_mode: bool = False
+    category_field: str | None = None  # "类目"
+    white_bg_image_field: str | None = None  # "白底图"
+    transparent_image_field: str | None = None  # "透明图"
+    scene_image_field: str | None = None  # "场景图"
+
     # 可选增强字段
     style_code_field: str | None = None
     run_account_field: str | None = None
