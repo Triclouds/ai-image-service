@@ -549,7 +549,7 @@ class GenerationService:
                             prompt=scene_prompt,
                             reference_image=ref_image_bytes,
                             table_config=table_config,
-                            aspect_ratio="3:4",
+                            aspect_ratio="1:1",
                         )
                         scene_attach = await self.dingtalk.upload_attachment(
                             table_config,
