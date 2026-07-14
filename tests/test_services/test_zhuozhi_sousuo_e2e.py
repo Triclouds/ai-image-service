@@ -307,6 +307,7 @@ async def test_sousuo_process_full_success(sousuo_settings, mock_dingtalk, mock_
                 # 搜推素材：三段式段落源是「扰动列表」字段
                 "扰动列表": PROMPT_TEXT,
                 "提示词": "基础参考描述",
+                "生成数量": "3",     # 真实钉钉场景：控制每段抽几张（这里给 3）
                 "生成比例": "1:1",
                 "分辨率": "1024",
             },
@@ -384,7 +385,7 @@ async def test_sousuo_shop_code_extraction(
             },
         }
         mock_dingtalk.list_records.return_value = [
-            {"fields": {"扰动列表": PROMPT_TEXT}}
+            {"fields": {"扰动列表": PROMPT_TEXT, "生成数量": "3"}}
         ]
         mock_dingtalk.download_file.return_value = b"ref"
         mock_dingtalk.upload_attachment.return_value = {
@@ -427,7 +428,7 @@ async def test_sousuo_process_partial_failure(
         },
     }
     mock_dingtalk.list_records.return_value = [
-        {"fields": {"扰动列表": PROMPT_TEXT}}
+        {"fields": {"扰动列表": PROMPT_TEXT, "生成数量": "3"}}
     ]
     mock_dingtalk.download_file.return_value = b"ref"
     # 3 次 upload（实际只 2 次会被 await，但 side_effect 长度要 >= 3 才不抛 StopIteration）
@@ -450,6 +451,120 @@ async def test_sousuo_process_partial_failure(
     fields = mock_dingtalk.update_record.call_args[0][2]
     assert len(fields["场景图"]) == 2
     assert fields["生成结果"].startswith("成功2/3")
+
+
+@pytest.mark.asyncio
+async def test_sousuo_count_driven_by_prompt_table(
+    sousuo_settings, mock_dingtalk, mock_generator
+):
+    """生成张数由提示词表「生成数量」字段决定，而非 table_config.count_per_section。
+
+    业务真实场景：
+    - zhuozhi-sousuo prompt 表「生成数量」= "6" → 应输出 6 张
+    - ahmi-sousuo prompt 表「生成数量」= "3" → 应输出 3 张
+    即使 table_config.count_per_section=3，「生成数量」=6 时也应输出 6 张。
+    """
+    mock_dingtalk.get_record.return_value = {
+        "id": "recS_COUNT",
+        "fields": {
+            "商品ID": "GID",
+            "店铺": {"name": "淘宝-AHMI,13706801"},
+            "素材图": [{"url": "/file/ref.jpg"}],
+            "生图模型": {"name": "Nano Banana 2"},
+        },
+    }
+    # 提示词表「生成数量」= "6"（字符串，钉钉默认行为）
+    mock_dingtalk.list_records.return_value = [
+        {"fields": {"扰动列表": PROMPT_TEXT, "生成数量": "6"}}
+    ]
+    mock_dingtalk.download_file.return_value = b"ref"
+    # 6 次 upload side_effect（实际可能 < 6 也行，>= 即可避免 StopIteration）
+    mock_dingtalk.upload_attachment.side_effect = [
+        {"filename": f"f{i}.png", "size": 1, "type": "image/png", "url": f"/u{i}", "resourceId": f"r{i}"}
+        for i in range(1, 8)
+    ]
+    mock_generator.generate_batch.return_value = [f"img{i}".encode() for i in range(1, 7)]
+
+    service = GenerationService(
+        dingtalk=mock_dingtalk, generator=mock_generator, settings=sousuo_settings,
+    )
+    await service.process(record_id="recS_COUNT", table_key="zhuozhi-sousuo")
+
+    # 关键断言：generate_batch 收到 6 个 prompt（由「生成数量」=6 驱动）
+    call_kwargs = mock_generator.generate_batch.call_args
+    assert len(call_kwargs.kwargs["prompts"]) == 6, (
+        f"期望 6 个 prompt（生成数量=6），实际 {len(call_kwargs.kwargs['prompts'])}"
+    )
+    assert mock_dingtalk.upload_attachment.await_count == 6
+
+
+@pytest.mark.asyncio
+async def test_sousuo_count_falls_back_to_config_when_missing(
+    sousuo_settings, mock_dingtalk, mock_generator
+):
+    """「生成数量」字段缺失/无效 → 回落 table_config.count_per_section。"""
+    mock_dingtalk.get_record.return_value = {
+        "id": "recS_FB",
+        "fields": {
+            "商品ID": "GID",
+            "店铺": {"name": "淘宝-AHMI,13706801"},
+            "素材图": [{"url": "/file/ref.jpg"}],
+            "生图模型": {"name": "Nano Banana 2"},
+        },
+    }
+    # 「生成数量」字段缺失（没设置）
+    mock_dingtalk.list_records.return_value = [
+        {"fields": {"扰动列表": PROMPT_TEXT}}
+    ]
+    mock_dingtalk.download_file.return_value = b"ref"
+    mock_dingtalk.upload_attachment.side_effect = [
+        {"filename": f"f{i}.png", "size": 1, "type": "image/png", "url": f"/u{i}", "resourceId": f"r{i}"}
+        for i in range(1, 5)
+    ]
+    mock_generator.generate_batch.return_value = [f"img{i}".encode() for i in range(1, 4)]
+
+    service = GenerationService(
+        dingtalk=mock_dingtalk, generator=mock_generator, settings=sousuo_settings,
+    )
+    await service.process(record_id="recS_FB", table_key="zhuozhi-sousuo")
+
+    # 回落：count_per_section=3（来自 config）
+    call_kwargs = mock_generator.generate_batch.call_args
+    assert len(call_kwargs.kwargs["prompts"]) == 3
+
+
+@pytest.mark.asyncio
+async def test_sousuo_count_handles_invalid_value(
+    sousuo_settings, mock_dingtalk, mock_generator
+):
+    """「生成数量」字段值非法（如 "abc"）→ 回落 table_config.count_per_section。"""
+    mock_dingtalk.get_record.return_value = {
+        "id": "recS_BAD",
+        "fields": {
+            "商品ID": "GID",
+            "店铺": {"name": "淘宝-AHMI,13706801"},
+            "素材图": [{"url": "/file/ref.jpg"}],
+            "生图模型": {"name": "Nano Banana 2"},
+        },
+    }
+    mock_dingtalk.list_records.return_value = [
+        {"fields": {"扰动列表": PROMPT_TEXT, "生成数量": "abc"}}  # 非法
+    ]
+    mock_dingtalk.download_file.return_value = b"ref"
+    mock_dingtalk.upload_attachment.side_effect = [
+        {"filename": f"f{i}.png", "size": 1, "type": "image/png", "url": f"/u{i}", "resourceId": f"r{i}"}
+        for i in range(1, 5)
+    ]
+    mock_generator.generate_batch.return_value = [f"img{i}".encode() for i in range(1, 4)]
+
+    service = GenerationService(
+        dingtalk=mock_dingtalk, generator=mock_generator, settings=sousuo_settings,
+    )
+    await service.process(record_id="recS_BAD", table_key="zhuozhi-sousuo")
+
+    # 非法值回落：count_per_section=3
+    call_kwargs = mock_generator.generate_batch.call_args
+    assert len(call_kwargs.kwargs["prompts"]) == 3
 
 
 @pytest.mark.asyncio
@@ -480,7 +595,7 @@ async def test_sousuo_missing_section_fails(sousuo_settings, mock_dingtalk, mock
         },
     }
     mock_dingtalk.list_records.return_value = [
-        {"fields": {"扰动列表": partial_prompt}}
+        {"fields": {"扰动列表": partial_prompt, "生成数量": "3"}}
     ]
     mock_dingtalk.download_file.return_value = b"ref"
 
