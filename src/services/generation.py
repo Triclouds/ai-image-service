@@ -369,17 +369,16 @@ class GenerationService:
     async def _process_batch_base_material(
         self, record_id: str, table_config: TableConfig
     ) -> None:
-        """基础素材按需生图：白底图/透明图/场景图，三图独立判断已有则跳过。
+        """基础素材按需生图：白底图/场景图，两图独立判断已有则跳过。
 
         前置条件：table_config.base_material_mode=True 且启动时校验通过。
 
-        三部判断逻辑：
+        两部判断逻辑：
         (1) 白底图已有 → 跳过；否则按类目匹配提示词生成 → 上传 {goodsId}_白底图.png → 回写
-        (2) 透明图已有 → 跳过；否则按类目匹配提示词生成 → 上传 {goodsId}_透明图.png → 回写
-        (3) 场景图已有 → 跳过；否则从1-10中随机选提示词 → 上传 {goodsId}_场景图.png → 回写
+        (2) 场景图已有 → 跳过；否则从1-10中随机选提示词 → 上传 {goodsId}_场景图.png → 回写
 
-        三图并发控制：通过 Semaphore（复用父类的 max_concurrency）限制，
-        三张图依次执行，不抢占并发槽位。
+        两图并发控制：通过 Semaphore（复用父类的 max_concurrency）限制，
+        两张图依次执行，不抢占并发槽位。
         """
         step_start = time.monotonic()
 
@@ -402,24 +401,21 @@ class GenerationService:
             category=category, model=model_raw,
         )
 
-        # 2. 检查三图已有状态
+        # 2. 检查两图已有状态
         wb_field = table_config.white_bg_image_field
-        tp_field = table_config.transparent_image_field
         sc_field = table_config.scene_image_field
         white_bg_exists = bool(fields.get(wb_field)) if wb_field else False
-        transparent_exists = bool(fields.get(tp_field)) if tp_field else False
         scene_exists = bool(fields.get(sc_field)) if sc_field else False
         logger.info(
             "基础素材已有图片状态",
             record_id=record_id,
             white_bg=white_bg_exists,
-            transparent=transparent_exists,
             scene=scene_exists,
         )
 
-        # 三张图都已存在 → 直接返回
-        if white_bg_exists and transparent_exists and scene_exists:
-            logger.info("三图均已存在，无生成任务", record_id=record_id)
+        # 两张图都已存在 → 直接返回
+        if white_bg_exists and scene_exists:
+            logger.info("两图均已存在，无生成任务", record_id=record_id)
             await self.dingtalk.update_record(
                 table_config,
                 record_id,
@@ -471,7 +467,7 @@ class GenerationService:
             )
             return
 
-        # 5. 拆段：按"一、""二、""三、" 拆分为 {白底图: [...], 透明图: [...], 场景图: [...]}
+        # 5. 拆段：按"一、""二、" 拆分为 {白底图: [...], 场景图: [...]}
         step = "拆解三段式提示词"
         sections = parse_prompt_sections(prompt_text, table_config.section_titles or {})
         logger.info(
@@ -509,26 +505,7 @@ class GenerationService:
                 file_suffix="白底图",
             )
 
-        # --- 7b. 透明图 ---
-        if not transparent_exists:
-            await self._generate_base_material_image(
-                record_id=record_id,
-                table_config=table_config,
-                section_name="透明图",
-                category=category,
-                sections=sections,
-                model=model,
-                ref_image_bytes=ref_image_bytes,
-                goods_id=goods_id,
-                aspect_ratio="1:1",
-                attachments=attachments,
-                success_list=success_list,
-                failure_list=failure_list,
-                target_field=table_config.transparent_image_field or "",
-                file_suffix="透明图",
-            )
-
-        # --- 7c. 场景图 ---
+        # --- 7b. 场景图 ---
         if not scene_exists:
             scene_items = sections.get("场景图", [])
             if not scene_items:
@@ -619,7 +596,7 @@ class GenerationService:
     ) -> None:
         """基础素材单项生成：按类目匹配提示词 → 生图 → 上传。
 
-        作为 _process_batch_base_material 的子步骤复用，白底图和透明图共用此方法，
+        作为 _process_batch_base_material 的子步骤，白底图使用此方法，
         场景图走独立的随机逻辑。
         """
         items = sections.get(section_name, [])
