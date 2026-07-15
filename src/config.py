@@ -66,7 +66,6 @@ class TableConfig(BaseModel):
     base_material_mode: bool = False
     category_field: str | None = None  # "类目"
     white_bg_image_field: str | None = None  # "白底图"
-    transparent_image_field: str | None = None  # "透明图"
     scene_image_field: str | None = None  # "场景图"
 
     # 可选增强字段
