@@ -213,7 +213,10 @@ class DingTalkClient:
             resource_url = result.resource_url
 
             # Step 2: PUT 上传文件到 OSS
-            async with httpx.AsyncClient(timeout=60) as client:
+            async with httpx.AsyncClient(
+                timeout=60,
+                limits=httpx.Limits(max_connections=50, max_keepalive_connections=10),
+            ) as client:
                 await client.put(
                     upload_url,
                     content=file_bytes,
@@ -237,7 +240,10 @@ class DingTalkClient:
             token = await self._get_access_token()
             full_url = urljoin("https://api.dingtalk.com", file_url)
 
-            async with httpx.AsyncClient(timeout=60) as client:
+            async with httpx.AsyncClient(
+                timeout=60,
+                limits=httpx.Limits(max_connections=50, max_keepalive_connections=10),
+            ) as client:
                 response = await client.get(
                     full_url,
                     headers={"x-acs-dingtalk-access-token": token},

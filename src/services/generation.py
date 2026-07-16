@@ -80,6 +80,14 @@ class GenerationService:
             tb = traceback.format_exc()
             logger.error(f"回写失败状态失败 record_id={record_id} table_key={table_config.key} original_error={error_message}\n{tb}")
 
+    async def _download_reference_images(
+        self, ref_image_data: list[dict]
+    ) -> list[bytes]:
+        """下载记录附件里全部参考图，返回 list[bytes]；无有效 url 时返回 []。"""
+        urls = [a.get("url") for a in ref_image_data if isinstance(a, dict)]
+        urls = [u for u in urls if u]
+        return await asyncio.gather(*[self.dingtalk.download_file(u) for u in urls])
+
     async def process(self, record_id: str, table_key: str | None = None) -> None:
         """根据 batch_mode 分流到单图或批量生图流程。"""
         async with self._semaphore:
@@ -157,8 +165,11 @@ class GenerationService:
 
         # 4. 下载素材图
         step = "下载素材图"
-        ref_image_bytes = await self.dingtalk.download_file(ref_image_data[0]["url"])
-        logger.info("步骤4: 素材图下载成功", record_id=record_id, size=len(ref_image_bytes), elapsed=self._elapsed(step_start))
+        ref_image_bytes = await self._download_reference_images(ref_image_data)
+        if not ref_image_bytes:
+            await self._update_failure(table_config, record_id, "素材图 url 为空")
+            return
+        logger.info("步骤4: 素材图下载成功", record_id=record_id, count=len(ref_image_bytes), elapsed=self._elapsed(step_start))
         step_start = time.monotonic()
 
         # 5. 获取模型并调用AI生图
@@ -238,11 +249,10 @@ class GenerationService:
         if not isinstance(ref_image_data, list) or not ref_image_data:
             await self._update_failure(table_config, record_id, "素材图不能为空")
             return
-        ref_image_url = ref_image_data[0].get("url")
-        if not ref_image_url:
+        ref_image_bytes = await self._download_reference_images(ref_image_data)
+        if not ref_image_bytes:
             await self._update_failure(table_config, record_id, "素材图 url 为空")
             return
-        ref_image_bytes = await self.dingtalk.download_file(ref_image_url)
 
         # 4. 按 task_name 查提示词表
         step = "查提示词表"
@@ -432,11 +442,10 @@ class GenerationService:
         if not isinstance(ref_image_data, list) or not ref_image_data:
             await self._update_failure(table_config, record_id, "素材图不能为空")
             return
-        ref_image_url = ref_image_data[0].get("url")
-        if not ref_image_url:
+        ref_image_bytes = await self._download_reference_images(ref_image_data)
+        if not ref_image_bytes:
             await self._update_failure(table_config, record_id, "素材图 url 为空")
             return
-        ref_image_bytes = await self.dingtalk.download_file(ref_image_url)
 
         # 4. 查提示词表（按 task_name 过滤）
         step = "查提示词表"
@@ -682,11 +691,10 @@ class GenerationService:
         if not isinstance(ref_image_data, list) or not ref_image_data:
             await self._update_failure(table_config, record_id, "素材图不能为空")
             return
-        ref_image_url = ref_image_data[0].get("url")
-        if not ref_image_url:
+        ref_image_bytes = await self._download_reference_images(ref_image_data)
+        if not ref_image_bytes:
             await self._update_failure(table_config, record_id, "素材图 url 为空")
             return
-        ref_image_bytes = await self.dingtalk.download_file(ref_image_url)
 
         # 4. 按 task_name 查提示词表（与原 batch 逻辑相同）
         step = "查提示词表"

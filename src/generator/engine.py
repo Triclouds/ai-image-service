@@ -39,6 +39,15 @@ def _to_png_bytes(image_bytes: bytes) -> bytes:
     return buf.getvalue()
 
 
+def _as_image_list(images: bytes | list[bytes] | None) -> list[bytes]:
+    """把单图/多图/None 统一归一为 list[bytes]，过滤掉空值。"""
+    if images is None:
+        return []
+    if isinstance(images, (bytes, bytearray)):
+        return [bytes(images)]
+    return [bytes(b) for b in images if b]
+
+
 def _map_gpt_size(resolution: str | None) -> str | None:
     """把 NanoBanana 风格 resolution 映射到 GPT 5 档 size。
 
@@ -81,7 +90,7 @@ class AIGenerator:
         self,
         model: str,
         prompt: str,
-        reference_image: bytes | None = None,
+        reference_image: bytes | list[bytes] | None = None,
         table_config: TableConfig | None = None,
         aspect_ratio: str | None = None,
         resolution: str | None = None,
@@ -91,7 +100,7 @@ class AIGenerator:
         Args:
             model: 模型名称（如 "Nano Banana 2"）
             prompt: 生图提示词
-            reference_image: 素材图字节（可选）
+            reference_image: 素材图字节，单张 bytes 或多张 list[bytes]（可选）
             table_config: 表格配置，通过 image_api_key_env 字段获取 AI 图片 API Key 环境变量名。必填。
             aspect_ratio: 生成比例（如 "16:9"）。仅 NanoBanana 生效，GPT 忽略。
             resolution: 分辨率档位（"1K"/"2K"/"4K"）。仅 NanoBanana 完整生效，
@@ -132,7 +141,7 @@ class AIGenerator:
         self,
         model: str,
         prompts: list[str],
-        reference_image: bytes | None = None,
+        reference_image: bytes | list[bytes] | None = None,
         table_config: TableConfig | None = None,
         aspect_ratio: str | None = None,
         resolution: str | None = None,
@@ -190,17 +199,18 @@ class AIGenerator:
         base_url: str,
         model_name: str,
         prompt: str,
-        image_bytes: bytes | None,
+        image_bytes: bytes | list[bytes] | None,
         api_key: str,
         aspect_ratio: str | None = None,
         resolution: str | None = None,
     ) -> bytes:
-        """调用 Google genai SDK 图生图。
+        """调用 Google genai SDK 图生图（支持多张参考图）。
 
         aspect_ratio / resolution 任一非空时构造 image_config，否则 config=None 走 SDK 默认。
+        多张参考图直接摊平进 contents：[prompt, img1, img2, ...]。
         """
         client = self._get_genai_client(api_key, base_url).aio
-        pil_image = Image.open(io.BytesIO(image_bytes))
+        pil_images = [Image.open(io.BytesIO(b)) for b in _as_image_list(image_bytes)]
 
         # 仅在用户提供比例/分辨率时才加 image_config，避免空 ImageConfig() 触发 SDK 校验
         config = None
@@ -215,7 +225,7 @@ class AIGenerator:
 
         response = await client.models.generate_content(
             model=model_name,
-            contents=[prompt, pil_image],
+            contents=[prompt, *pil_images],
             config=config,
         )
         for part in response.parts:
@@ -228,14 +238,15 @@ class AIGenerator:
         base_url: str,
         model_name: str,
         prompt: str,
-        image: bytes | None,
+        image: bytes | list[bytes] | None,
         api_key: str,
         resolution: str | None = None,
     ) -> bytes:
-        """调用 OpenAI SDK 图生图。
+        """调用 OpenAI SDK 图生图（支持多张参考图）。
 
         resolution 走 _map_gpt_size 映射到 5 档 size，映射不上为 None（走 SDK 默认 auto）。
         aspect_ratio 对 GPT 无效，忽略。
+        image 单张时传 bytes、多张时传 list[bytes]（gpt-image 的 image 参数接受数组）。
         """
         client = AsyncOpenAI(
             api_key=api_key,
@@ -244,9 +255,10 @@ class AIGenerator:
             max_retries=0,
         )
         size = _map_gpt_size(resolution)
+        imgs = _as_image_list(image)
         response = await client.images.edit(
             model=model_name,
-            image=image,
+            image=imgs[0] if len(imgs) == 1 else imgs,
             prompt=prompt,
             n=1,
             response_format="b64_json",
@@ -267,5 +279,5 @@ class AIGenerator:
     async def close(self) -> None:
         """关闭所有缓存的 genai Client，释放底层连接池。"""
         for client in self._genai_clients.values():
-            await client.aio.close()
+            await client.aio.aclose()
         self._genai_clients.clear()
