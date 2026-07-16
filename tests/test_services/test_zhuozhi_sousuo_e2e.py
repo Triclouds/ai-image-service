@@ -338,7 +338,8 @@ async def test_sousuo_process_full_success(sousuo_settings, mock_dingtalk, mock_
     call_kwargs = mock_generator.generate_batch.call_args
     assert len(call_kwargs.kwargs["prompts"]) == 3
     assert call_kwargs.kwargs["model"] == "Nano Banana 2"
-    assert call_kwargs.kwargs["reference_image"] == b"ref_bytes"
+    # 多参考图接口：单图场景下传 list[bytes]，长度 1
+    assert call_kwargs.kwargs["reference_image"] == [b"ref_bytes"]  # ponytail: 单图兼容，多图后扩测试
 
     # 2. upload × 3
     assert mock_dingtalk.upload_attachment.await_count == 3
