@@ -42,6 +42,43 @@ result_image_field = "生成图片"
 result_status_field = "生成结果"
 result_time_field = "生成时间"
 
+# ===== 卖点图生图配置 =====
+[[dingtalk.tables]]
+key = "zhuozhi-salesPoint"
+base_id = "ZgpG2NdyVX6bMqMaTGgr2nLG8MwvDqPk"
+sheet_id = "y6GSx2D"
+image_api_key_env = "ZHUOZHI_IMAGE_API_KEY"
+prompt_field = "提示词"
+model_field = "生图模型"
+reference_image_field = "素材图"
+result_image_field = "材质卖点图"
+result_status_field = "生成结果"
+result_time_field = "生成时间"
+
+[[dingtalk.tables]]
+key = "ahmi-salesPoint"
+base_id = "YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb"
+sheet_id = "1yagdsY"
+image_api_key_env = "AHMI_IMAGE_API_KEY"
+prompt_field = "提示词"
+model_field = "生图模型"
+reference_image_field = "素材图"
+result_image_field = "材质卖点图"
+result_status_field = "生成结果"
+result_time_field = "生成时间"
+
+[[dingtalk.tables]]
+key = "huapu-salesPoint"
+base_id = "qnYMoO1rWxnLBYBbSzQ1KEQBJ47Z3je9"
+sheet_id = "W22N39k"
+image_api_key_env = "HUAPU_IMAGE_API_KEY"
+prompt_field = "提示词"
+model_field = "生图模型"
+reference_image_field = "素材图"
+result_image_field = "材质卖点图"
+result_status_field = "生成结果"
+result_time_field = "生成时间"
+
 [server]
 host = "0.0.0.0"
 port = 8030
