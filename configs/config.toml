@@ -3,7 +3,45 @@
 [dingtalk]
 default_table = "zhuozhi-base"  # 默认使用的表格 key
 
-# 表格 1：卓芝基础生图
+
+# ===== 买家秀生图配置 =====
+[[dingtalk.tables]]
+key = "zhuozhi-buyerShow"
+base_id = "ZgpG2NdyVX6bMqMaTGgr2nLG8MwvDqPk"
+sheet_id = "hERWDMS"
+image_api_key_env = "ZHUOZHI_IMAGE_API_KEY"
+prompt_field = "提示词"
+model_field = "生图模型"
+reference_image_field = "素材图"
+result_image_field = "生成图片"
+result_status_field = "生成结果"
+result_time_field = "生成时间"
+
+[[dingtalk.tables]]
+key = "huapu-buyerShow"
+base_id = "qnYMoO1rWxnLBYBbSzQ1KEQBJ47Z3je9"
+sheet_id = "hERWDMS"
+image_api_key_env = "HUAPU_IMAGE_API_KEY"
+prompt_field = "提示词"
+model_field = "生图模型"
+reference_image_field = "素材图"
+result_image_field = "生成图片"
+result_status_field = "生成结果"
+result_time_field = "生成时间"
+
+[[dingtalk.tables]]
+key = "ahmi-buyerShow"
+base_id = "YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb"
+sheet_id = "frUIKUw"
+image_api_key_env = "AHMI_IMAGE_API_KEY"
+prompt_field = "提示词"
+model_field = "生图模型"
+reference_image_field = "素材图"
+result_image_field = "买家秀图片"
+result_status_field = "生成结果"
+result_time_field = "生成时间"
+
+# ===== 基础生图配置 =====
 [[dingtalk.tables]]
 key = "zhuozhi-base"
 base_id = "ZgpG2NdyVX6bMqMaTGgr2nLG8MwvDqPk"
@@ -16,7 +54,6 @@ result_image_field = "生成图片"
 result_status_field = "生成结果"
 result_time_field = "生成时间"
 
-# 表格 2：画朴基础生图
 [[dingtalk.tables]]
 key = "huapu-base"
 base_id = "qnYMoO1rWxnLBYBbSzQ1KEQBJ47Z3je9"
@@ -29,7 +66,6 @@ result_image_field = "生成图片"
 result_status_field = "生成结果"
 result_time_field = "生成时间"
 
-# 表格 3：AHMI基础生图
 [[dingtalk.tables]]
 key = "ahmi-base"
 base_id = "YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb"
