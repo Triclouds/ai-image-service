@@ -129,17 +129,17 @@ initial_delay = 2
 max_retries = 1
 
 [ai.model."Nano Banana Pro"]
-base_url = "https://api.vectorengine.ai"
+base_url = "https://api.vectorengine.cn"
 model_name = "gemini-3-pro-image-preview"
 provider = "google"
 
 [ai.model."Nano Banana 2"]
-base_url = "https://api.vectorengine.ai"
+base_url = "https://api.vectorengine.cn"
 model_name = "gemini-3.1-flash-image-preview"
 provider = "google"
 
 [ai.model."GPT Image 2"]
-base_url = "https://api.vectorengine.ai/v1"
+base_url = "https://api.vectorengine.cn/v1"
 model_name = "gpt-image-2"
 provider = "openai"
 
@@ -153,13 +153,13 @@ max_total = 600    # 总超时（秒），默认 10 分钟
 
 # 视频厂商基础配置（model_name 由钉钉表格透传，不在此处配置）
 [ai.video_provider."kling"]
-base_url = "https://api.vectorengine.ai"
+base_url = "https://api.vectorengine.cn"
 
 [ai.video_provider."hailuo"]
-base_url = "https://api.vectorengine.ai"
+base_url = "https://api.vectorengine.cn"
 
 [ai.video_provider."wanxiang"]
-base_url = "https://api.vectorengine.ai"
+base_url = "https://api.vectorengine.cn"
 
 # 视频表格配置（与图片表独立）
 # 钉钉 base_id / sheet_id 需用户填实际值后端到端运行
