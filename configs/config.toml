@@ -3,6 +3,10 @@
 [dingtalk]
 default_table = "zhuozhi-base"  # 默认使用的表格 key
 
+# ===== 调试配置 =====
+[debug]
+image_dump_enabled = true
+
 
 # ===== 买家秀生图配置 =====
 [[dingtalk.tables]]

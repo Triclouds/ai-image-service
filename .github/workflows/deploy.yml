@@ -98,6 +98,7 @@ jobs:
           echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.milu.moe -u $REPO_OWNER_LOWER --password-stdin > /dev/null 2>&1 || true
 
           test ! -d logs && (mkdir logs && chmod 777 logs)
+          test ! -d /mnt/f/共享文件夹/款式素材生成图 && mkdir -p /mnt/f/共享文件夹/款式素材生成图
 
           docker compose pull
           docker compose up -d

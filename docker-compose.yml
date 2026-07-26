@@ -4,6 +4,7 @@ services:
     container_name: ai-image-service
     volumes:
       - ./logs:/opt/ai-image-service/logs
+      - /mnt/f/共享文件夹/款式素材生成图:/opt/ai-image-service/images
     env_file:
       - .env
     environment:

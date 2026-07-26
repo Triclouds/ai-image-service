@@ -30,6 +30,7 @@ COPY . .
 
 # 非 root 用户
 RUN groupadd -r appuser && useradd -r -g appuser -d /opt/ai-image-service -s /sbin/nologin appuser \
+    && mkdir -p /opt/ai-image-service/images \
     && chown -R appuser:appuser /opt/ai-image-service
 
 USER appuser
