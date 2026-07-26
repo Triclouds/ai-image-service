@@ -8,6 +8,9 @@ import base64
 import hashlib
 import io
 
+import logging
+logging.getLogger("httpx").setLevel(logging.DEBUG)
+
 import httpx
 
 try:
