@@ -209,23 +209,22 @@ class AIGenerator:
     ) -> bytes:
         """调用 Google genai SDK 图生图（支持多张参考图）。
 
-        aspect_ratio / resolution 任一非空时构造 image_config，否则 config=None 走 SDK 默认。
+        无条件构造 GenerateContentConfig：response_modalities 固定 ["TEXT", "IMAGE"]，
+        thinking_level 固定 "Minimal"；aspect_ratio 缺省 "3:4"、image_size 缺省 "1K"。
         多张参考图直接摊平进 contents：[prompt, img1, img2, ...]。
         """
         client = self._get_genai_client(api_key, base_url).aio
         image_bytes_list = _as_image_list(image_bytes)
         pil_images = [Image.open(io.BytesIO(b)) for b in image_bytes_list]
 
-        # 仅在用户提供比例/分辨率时才加 image_config，避免空 ImageConfig() 触发 SDK 校验
-        config = None
-        if aspect_ratio or resolution:
-            config = types.GenerateContentConfig(
-                response_modalities=["IMAGE"],
-                image_config=types.ImageConfig(
-                    aspect_ratio=aspect_ratio or None,
-                    image_size=resolution or None,
-                ),
-            )
+        config = types.GenerateContentConfig(
+            response_modalities=["TEXT", "IMAGE"],
+            image_config=types.ImageConfig(
+                aspect_ratio=aspect_ratio or "3:4",
+                image_size=resolution or "1K",
+            ),
+            thinking_config=types.ThinkingConfig(thinking_level="Minimal"),
+        )
         img_formats = [img.format for img in pil_images]
         img_sizes = [f"{img.width}x{img.height}" for img in pil_images]
         img_md5 = [hashlib.md5(b).hexdigest()[:8] for b in image_bytes_list]
