@@ -11,7 +11,7 @@ python-multipart>=0.0.9
 # 钉钉 SDK
 alibabacloud-dingtalk>=2.0.0
 # AI 生图 SDK
-google-genai>=0.8.0
+google-genai==1.69.0
 openai>=1.0.0
 # 重试
 tenacity>=8.2.0

@@ -1,7 +1,9 @@
-"""upload_attachment 集成测试。
+"""端到端真实生图集成测试。
 
-使用真实 .env / config.toml 配置，手动指定表名和记录 ID。
-运行前需修改下方 TODO 标记的值。
+直接调用项目里的 GenerationService.process()，跑完整线上流程：
+获取钉钉记录 → 下载素材图 → AI 生图 → 上传结果 → 回写表格。
+
+素材图与成图落盘到 ./images/{date}/{table_key}/{record_id}/（image_dump_enabled=true 时）。
 
 用法:
     cd 项目根目录
@@ -17,71 +19,31 @@ from pathlib import Path
 os.chdir(Path(__file__).resolve().parent.parent)
 sys.path.insert(0, "src")
 
-from config import Settings
-from dingtalk.client import DingTalkClient
-
+from api.deps import get_generation_service, get_settings
 
 # ============================================================
-# TODO: 运行前修改以下两个值
+# 测试目标：ahmi 买家秀表 + 指定记录
 # ============================================================
-# TABLE_KEY = "ahmi-base"       # config.toml 中的表格 key
-# RECORD_ID = "0igoDwewc5"                 # 要测试上传的记录 ID
-# TABLE_KEY = "huapu-base"       # config.toml 中的表格 key
-# RECORD_ID = "7Gtfo83ZWU"                 # 要测试上传的记录 ID
-TABLE_KEY = "zhuozhi-base"       # config.toml 中的表格 key
-RECORD_ID = "RECORD_ID_HERE"                 # 要测试上传的记录 ID
+TABLE_KEY = "ahmi-buyerShow"
+RECORD_ID = "BaDw28hGeJ"
 # ============================================================
-
-
-def _make_test_png() -> bytes:
-    """生成一个最小的 1x1 蓝色 PNG 图片，用于测试上传。"""
-    import struct
-    import zlib
-
-    def chunk(chunk_type: bytes, data: bytes) -> bytes:
-        c = chunk_type + data
-        return struct.pack(">I", len(data)) + c + struct.pack(">I", zlib.crc32(c) & 0xFFFFFFFF)
-
-    ihdr = struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)  # 1x1, 8-bit RGB
-    raw = zlib.compress(b"\x00" + b"\x00\x00\xff")         # filter byte + BGR blue
-    return (
-        b"\x89PNG\r\n\x1a\n"
-        + chunk(b"IHDR", ihdr)
-        + chunk(b"IDAT", raw)
-        + chunk(b"IEND", b"")
-    )
 
 
 async def main():
-    if not RECORD_ID:
-        print("错误: 请先修改脚本中的 RECORD_ID")
-        sys.exit(1)
-
-    settings = Settings()
-    client = DingTalkClient(settings)
+    settings = get_settings()
     table_config = settings.get_table(TABLE_KEY)
+    service = get_generation_service()
 
-    print(f"表名: {table_config.key}")
-    print(f"base_id: {table_config.base_id}")
+    print(f"表名:      {table_config.key}")
+    print(f"base_id:   {table_config.base_id}")
     print(f"record_id: {RECORD_ID}")
-    print(f"operator_id: {settings.dingtalk_operator_id}")
+    print(f"落盘开关:  image_dump_enabled={settings.debug.image_dump_enabled}")
+    print("\n开始跑完整生图流程...\n")
 
-    test_image = _make_test_png()
-    filename = f"test_upload_{RECORD_ID}.png"
+    await service.process(RECORD_ID, table_key=TABLE_KEY)
+    await service.generator.close()
 
-    print(f"\n上传测试图片 ({len(test_image)} bytes) ...")
-    try:
-        result = await client.upload_attachment(table_config, test_image, filename)
-    except Exception as e:
-        print(f"\n上传失败: {e}")
-        sys.exit(1)
-
-    print("\n上传成功!")
-    print(f"  filename:   {result['filename']}")
-    print(f"  size:       {result['size']}")
-    print(f"  type:       {result['type']}")
-    print(f"  url:        {result['url']}")
-    print(f"  resourceId: {result['resourceId']}")
+    print("\n流程结束。参考图/成图见 ./images/ 下对应目录，详细请求体见日志。")
 
 
 if __name__ == "__main__":

@@ -131,8 +131,10 @@ class GenerationService:
                 )
 
                 if table_config.batch_mode:
+                    step = "批量生图"
                     await self._process_batch(record_id, table_config)
                 else:
+                    step = "单图生图"
                     await self._process_single(record_id, table_config)
 
             except asyncio.CancelledError:
