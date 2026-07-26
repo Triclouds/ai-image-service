@@ -5,8 +5,8 @@
 
 import asyncio
 import base64
+import hashlib
 import io
-import random
 
 import httpx
 
@@ -210,7 +210,8 @@ class AIGenerator:
         多张参考图直接摊平进 contents：[prompt, img1, img2, ...]。
         """
         client = self._get_genai_client(api_key, base_url).aio
-        pil_images = [Image.open(io.BytesIO(b)) for b in _as_image_list(image_bytes)]
+        image_bytes_list = _as_image_list(image_bytes)
+        pil_images = [Image.open(io.BytesIO(b)) for b in image_bytes_list]
 
         # 仅在用户提供比例/分辨率时才加 image_config，避免空 ImageConfig() 触发 SDK 校验
         config = None
@@ -222,6 +223,18 @@ class AIGenerator:
                     image_size=resolution or None,
                 ),
             )
+        img_formats = [img.format for img in pil_images]
+        img_sizes = [f"{img.width}x{img.height}" for img in pil_images]
+        img_md5 = [hashlib.md5(b).hexdigest()[:8] for b in image_bytes_list]
+        logger.info(
+            "Gemini 生图请求体",
+            model=model_name,
+            prompt_len=len(prompt),
+            image_count=len(pil_images),
+            image_formats=img_formats,
+            image_sizes=img_sizes,
+            image_md5_prefix=img_md5,
+        )
 
         response = await client.models.generate_content(
             model=model_name,
