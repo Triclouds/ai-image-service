@@ -1,3 +1,33 @@
+# ===== 项目基础配置 =====
+
+[server]
+host = "0.0.0.0"
+port = 8030
+log_level = "INFO"
+max_concurrency = 5
+
+[ai]
+default_model = "Nano Banana 2"
+
+[ai.retry]
+initial_delay = 2
+max_retries = 1
+
+[ai.model."Nano Banana Pro"]
+base_url = "https://api.vectorengine.cn"
+model_name = "gemini-3-pro-image-preview"
+provider = "google"
+
+[ai.model."Nano Banana 2"]
+base_url = "https://api.vectorengine.cn"
+model_name = "gemini-3.1-flash-image-preview"
+provider = "google"
+
+[ai.model."GPT Image 2"]
+base_url = "https://api.vectorengine.cn/v1"
+model_name = "gpt-image-2"
+provider = "openai"
+
 # config.toml — 非敏感配置
 
 [dingtalk]
@@ -119,36 +149,8 @@ result_image_field = "材质卖点图"
 result_status_field = "生成结果"
 result_time_field = "生成时间"
 
-[server]
-host = "0.0.0.0"
-port = 8030
-log_level = "INFO"
-max_concurrency = 5
-
-[ai]
-default_model = "Nano Banana 2"
-
-[ai.retry]
-initial_delay = 2
-max_retries = 1
-
-[ai.model."Nano Banana Pro"]
-base_url = "https://api.vectorengine.cn"
-model_name = "gemini-3-pro-image-preview"
-provider = "google"
-
-[ai.model."Nano Banana 2"]
-base_url = "https://api.vectorengine.cn"
-model_name = "gemini-3.1-flash-image-preview"
-provider = "google"
-
-[ai.model."GPT Image 2"]
-base_url = "https://api.vectorengine.cn/v1"
-model_name = "gpt-image-2"
-provider = "openai"
 
 # ===== 视频生成 =====
-
 # 视频轮询策略
 [ai.video.poll]
 initial_wait = 10  # 首次轮询前等待（秒）
@@ -186,19 +188,18 @@ base_id = "<待补>"
 sheet_id = "<待补>"
 video_api_key_env = "AHMI_IMAGE_API_KEY"
 
-# ===== 批量生图配置 =====
-# 任务 A：动作图 sheet
+# ===== 动作图批量生图配置 =====
+# 画朴批量生图配置
 [[dingtalk.tables]]
-key = "ahmi-batch-action"
-base_id = "YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb"                       # 提示词表与生图表可共享同一 base
-sheet_id = "6ekHgxC"
-image_api_key_env = "AHMI_IMAGE_API_KEY"      # 复用现有 Key，无需新增
-
+key = "huapu-batch-action"
+base_id = "qnYMoO1rWxnLBYBbSzQ1KEQBJ47Z3je9"
+sheet_id = "W5yeTru"
+image_api_key_env = "HUAPU_IMAGE_API_KEY"
 batch_mode = true
-task_name = "动作图"                            # 提示词表"任务名称"列里精确匹配的值
-prompt_table_sheet_id = "jzFYB7x"
+task_name = "动作图"
+prompt_table_sheet_id = "Jl6FfSR"
 
-# 字段映射（按你的钉钉表实际列名调整）
+# 字段映射
 model_field = "生图模型"
 reference_image_field = "模特标准图"
 result_image_field = "生成图片结果"
@@ -213,6 +214,59 @@ count_field = "生成数量"
 aspect_ratio_field = "生成比例"
 resolution_field = "分辨率"
 perturbations_field = "扰动列表"
+
+# 卓芝批量生图配置
+[[dingtalk.tables]]
+key = "zhuozhi-batch-action"
+base_id = "ZgpG2NdyVX6bMqMaTGgr2nLG8MwvDqPk"
+sheet_id = "Z5ZgnFb"
+image_api_key_env = "ZHUOZHI_IMAGE_API_KEY"
+batch_mode = true
+task_name = "动作图"
+prompt_table_sheet_id = "42YsOaT"
+
+# 字段映射
+model_field = "生图模型"
+reference_image_field = "模特标准图"
+result_image_field = "生成图片结果"
+result_status_field = "生成情况"
+result_time_field = "生成时间"
+style_code_field = "款式编码"
+
+[dingtalk.tables.prompt_table]
+prompt_field = "提示词"
+generate_type_field = "生成类型"
+count_field = "生成数量"
+aspect_ratio_field = "生成比例"
+resolution_field = "分辨率"
+perturbations_field = "扰动列表"
+
+# AHMI批量生图配置
+[[dingtalk.tables]]
+key = "ahmi-batch-action"
+base_id = "YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb"
+sheet_id = "6ekHgxC"
+image_api_key_env = "AHMI_IMAGE_API_KEY"
+batch_mode = true
+task_name = "动作图"
+prompt_table_sheet_id = "jzFYB7x"
+
+# 字段映射
+model_field = "生图模型"
+reference_image_field = "模特标准图"
+result_image_field = "生成图片结果"
+result_status_field = "生成情况"
+result_time_field = "生成时间"
+style_code_field = "款式编码"
+
+[dingtalk.tables.prompt_table]
+prompt_field = "提示词"
+generate_type_field = "生成类型"
+count_field = "生成数量"
+aspect_ratio_field = "生成比例"
+resolution_field = "分辨率"
+perturbations_field = "扰动列表"
+
 
 # ===== 基础素材生图配置 =====
 [[dingtalk.tables]]
