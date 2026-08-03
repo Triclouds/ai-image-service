@@ -25,7 +25,7 @@ provider = "google"
 
 [ai.model."GPT Image 2"]
 base_url = "https://api.vectorengine.cn/v1"
-model_name = "gpt-image-2"
+model_name = "gpt-image-2-c"
 provider = "openai"
 
 # config.toml — 非敏感配置
