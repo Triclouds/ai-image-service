@@ -13,7 +13,8 @@ services:
       - "8030"
     restart: unless-stopped
     networks:
-      - 1panel-network
+      1panel-network:
+        ipv4_address: 172.18.0.15
     # 资源限制
     deploy:
       resources:
@@ -33,3 +34,8 @@ services:
 networks:
   1panel-network:
     external: true
+    name: 1panel-network
+    ipam:
+      config:
+        - subnet: 172.18.0.0/16
+          gateway: 172.18.0.1

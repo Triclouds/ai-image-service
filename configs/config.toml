@@ -65,7 +65,7 @@ result_time_field = "生成时间"
 
 [[dingtalk.tables]]
 key = "ahmi-buyerShow"
-base_id = "YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb"
+base_id = "P7QG4Yx2JprmqZq3SqP3px9zW9dEq3XD"
 sheet_id = "frUIKUw"
 image_api_key_env = "AHMI_IMAGE_API_KEY"
 prompt_field = "提示词"
@@ -102,7 +102,7 @@ result_time_field = "生成时间"
 
 [[dingtalk.tables]]
 key = "ahmi-base"
-base_id = "YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb"
+base_id = "P7QG4Yx2JprmqZq3SqP3px9zW9dEq3XD"
 sheet_id = "hERWDMS"
 image_api_key_env = "AHMI_IMAGE_API_KEY"
 prompt_field = "提示词"
@@ -127,7 +127,7 @@ result_time_field = "生成时间"
 
 [[dingtalk.tables]]
 key = "ahmi-salesPoint"
-base_id = "YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb"
+base_id = "P7QG4Yx2JprmqZq3SqP3px9zW9dEq3XD"
 sheet_id = "1yagdsY"
 image_api_key_env = "AHMI_IMAGE_API_KEY"
 prompt_field = "提示词"
@@ -244,7 +244,7 @@ perturbations_field = "扰动列表"
 # AHMI批量生图配置
 [[dingtalk.tables]]
 key = "ahmi-batch-action"
-base_id = "YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb"
+base_id = "P7QG4Yx2JprmqZq3SqP3px9zW9dEq3XD"
 sheet_id = "6ekHgxC"
 image_api_key_env = "AHMI_IMAGE_API_KEY"
 batch_mode = true
@@ -305,7 +305,7 @@ perturbations_field = "扰动列表"
 # ===== AHMI 基础素材生图配置 =====
 [[dingtalk.tables]]
 key = "ahmi-baseMaterial"
-base_id = "YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb"
+base_id = "P7QG4Yx2JprmqZq3SqP3px9zW9dEq3XD"
 sheet_id = "cBDIHr0"                              # AHMI 基础素材表格
 image_api_key_env = "AHMI_IMAGE_API_KEY"           # 用 AHMI 自己的 Key
 
@@ -407,7 +407,7 @@ perturbations_field = "扰动列表"
 # 任务 B：ahmi搜推素材 sheet（与 zhuozhi-base 同一 base，不同 sheet）
 [[dingtalk.tables]]
 key = "ahmi-sousuo"
-base_id = "YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb"
+base_id = "P7QG4Yx2JprmqZq3SqP3px9zW9dEq3XD"
 sheet_id = "wznpXNF"
 image_api_key_env = "AHMI_IMAGE_API_KEY"      # 复用现有 Key，无需新增
 
@@ -514,7 +514,7 @@ aspect_ratio_field = "比例"                          # 必填，空值/非法�
 # ===== AHMI 添加提示词动作图生图配置 =====
 [[dingtalk.tables]]
 key = "ahmi-promptAD"
-base_id = "YMyQA2dXW7lPDdDrT5M7MOORVzlwrZgb"
+base_id = "P7QG4Yx2JprmqZq3SqP3px9zW9dEq3XD"
 sheet_id = "5Vkk0h4"
 image_api_key_env = "AHMI_IMAGE_API_KEY"
 
