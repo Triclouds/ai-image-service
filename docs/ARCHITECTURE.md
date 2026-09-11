@@ -164,7 +164,7 @@ AI 模型处理
 
 **模型调用细节**：
 - **Google genai SDK**（NanoBanana）：SDK 自动追加 `v1beta/models/{model}:generateContent` 路径。`base_url` 配置为网关根地址即可。
-- **OpenAI SDK**（GPT-Image）：SDK 自动追加 `/images/edits` 路径。`base_url` 需包含 `/v1` 前缀（如 `https://api.vectorengine.ai/v1`）。
+- **OpenAI SDK**（GPT-Image）：SDK 自动追加 `/images/edits` 路径。`base_url` 需包含 `/v1` 前缀（如 `https://api.relayrouter.ai/v1`）。
 
 **输出格式统一**：无论模型返回什么格式，在 `AIGenerator.generate()` 出口用 Pillow 统一转 PNG：
 ```python
@@ -221,9 +221,9 @@ AIGenerator 根据 model 参数（钉钉表格"生图模型"字段值）自动�
 
 | 钉钉表格值 | provider | 真实 model_name | base_url |
 |------------|----------|-----------------|----------|
-| `Nano Banana Pro` | google | `gemini-3-pro-image-preview` | `https://api.vectorengine.ai` |
-| `Nano Banana 2` | google | `gemini-3.1-flash-image-preview` | `https://api.vectorengine.ai` |
-| `GPT Image 2` | openai | `gpt-image-2` | `https://api.vectorengine.ai/v1` |
+| `Nano Banana Pro` | google | `gemini-3-pro-image-preview` | `https://api.relayrouter.ai` |
+| `Nano Banana 2` | google | `gemini-3.1-flash-image-preview` | `https://api.relayrouter.ai` |
+| `GPT Image 2` | openai | `gpt-image-2` | `https://api.relayrouter.ai/v1` |
 
 每个模型独立配置 `base_url`，SDK 自动拼接各自 API 路径，无需手动拼接 endpoint。
 
@@ -287,7 +287,7 @@ AIGenerator 根据 model 参数（钉钉表格"生图模型"字段值）自动�
 
 ### 9.3 三家厂商异步任务模式
 
-所有视频 API 均为**提交 → 轮询**模式（vectorengine 中转）：
+所有视频 API 均为**提交 → 轮询**模式（relayrouter 中转）：
 
 ```
 客户端 ──POST──▶ /kling/v1/videos/image2video ──▶ task_id

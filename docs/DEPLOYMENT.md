@@ -115,7 +115,7 @@ max_concurrency = 5
 
 [ai]
 default_model = "Nano Banana 2"
-base_url = "https://api.vectorengine.ai"
+base_url = "https://api.relayrouter.ai"
 
 [ai.model."Nano Banana Pro"]
 endpoint = "/v1beta/models/gemini-3-pro-image-preview:generateContent"

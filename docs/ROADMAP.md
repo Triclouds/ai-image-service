@@ -100,7 +100,7 @@ AIGenerator 统一入口，根据 model 路由到对应 SDK Client。
 | `Nano Banana 2` | `gemini-3.1-flash-image-preview` | google | /v1beta/models/...:generateContent |
 | `GPT Image 2` | `gpt-image-2` | openai | /v1/images/edits |
 
-所有模型共用中转站 base_url: https://api.vectorengine.ai
+所有模型共用中转站 base_url: https://api.relayrouter.ai
 
 关键模块：
 - `generator/engine.py` — AIGenerator（统一入口）
@@ -165,7 +165,7 @@ AIGenerator 统一入口，根据 model 路由到对应 SDK Client。
 
 ### 7.1 业务背景
 
-在图片生成基础上新增**完全独立的视频生成能力**（独立接口、独立编排、独立 generator、独立配置）。首批接入三家厂商：快手可灵 (Kling) / 海螺 (Hailuo) / 通义万象 (Wanxiang)，均通过 `https://api.vectorengine.ai` 中转。
+在图片生成基础上新增**完全独立的视频生成能力**（独立接口、独立编排、独立 generator、独立配置）。首批接入三家厂商：快手可灵 (Kling) / 海螺 (Hailuo) / 通义万象 (Wanxiang)，均通过 `https://api.relayrouter.ai` 中转。
 
 ### 7.2 已完成功能
 
@@ -181,7 +181,7 @@ AIGenerator 统一入口，根据 model 路由到对应 SDK Client。
 ### 7.3 已知限制 / 待用户填值
 
 - `config.toml` 中三个 `[[dingtalk.video_tables]]` 的 `base_id` / `sheet_id` 为 `<待补>`，需要用户填入钉钉视频表的实际 ID 后才能端到端运行
-- **视频复用同品牌图片 API Key**（vectorengine 中转站同一账号 image/video 通用）：`config.toml` 中 `video_api_key_env` 直接指向 `ZHUOZHI_IMAGE_API_KEY` / `HUAPU_IMAGE_API_KEY` / `AHMI_IMAGE_API_KEY`，无需新增 `*_VIDEO_API_KEY`
+- **视频复用同品牌图片 API Key**（relayrouter 中转站同一账号 image/video 通用）：`config.toml` 中 `video_api_key_env` 直接指向 `ZHUOZHI_IMAGE_API_KEY` / `HUAPU_IMAGE_API_KEY` / `AHMI_IMAGE_API_KEY`，无需新增 `*_VIDEO_API_KEY`
 - 海螺/通义万象对 base64 的支持度需实测：当前按 base64 实现，若实测不支持则需切换为"先回写钉钉云空间获得公网 URL"作为兜底（当前未预留）
 
 ### 7.4 后续可扩展

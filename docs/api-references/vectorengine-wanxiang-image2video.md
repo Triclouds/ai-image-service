@@ -1,7 +1,7 @@
 # 通义万象（Wanxiang）视频生成 — 图生视频 API
 
-> 来源：https://vectorengine.apifox.cn/api-456406615
-> 中转域名：`https://api.vectorengine.ai`
+> 来源：https://doc.relayrouter.ai/
+> 中转域名：`https://api.relayrouter.ai`
 > Model: `happyhorse-1.0-i2v`
 
 ## 提交视频生成任务

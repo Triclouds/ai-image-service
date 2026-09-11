@@ -36,25 +36,25 @@ def mock_settings():
             retry=RetryConfig(initial_delay=1, max_retries=1),
             models={
                 "Nano Banana Pro": ModelConfig(
-                    base_url="https://api.vectorengine.ai",
+                    base_url="https://api.relayrouter.ai",
                     model_name="gemini-3-pro-image-preview",
                     provider="google",
                 ),
                 "Nano Banana 2": ModelConfig(
-                    base_url="https://api.vectorengine.ai",
+                    base_url="https://api.relayrouter.ai",
                     model_name="gemini-3.1-flash-image-preview",
                     provider="google",
                 ),
                 "GPT Image 2": ModelConfig(
-                    base_url="https://api.vectorengine.ai/v1",
+                    base_url="https://api.relayrouter.ai/v1",
                     model_name="gpt-image-2",
                     provider="openai",
                 ),
             },
             video_providers={
-                "kling": VideoProviderConfig(base_url="https://api.vectorengine.ai"),
-                "hailuo": VideoProviderConfig(base_url="https://api.vectorengine.ai"),
-                "wanxiang": VideoProviderConfig(base_url="https://api.vectorengine.ai"),
+                "kling": VideoProviderConfig(base_url="https://api.relayrouter.ai"),
+                "hailuo": VideoProviderConfig(base_url="https://api.relayrouter.ai"),
+                "wanxiang": VideoProviderConfig(base_url="https://api.relayrouter.ai"),
             },
             video_poll=VideoPollConfig(initial_wait=0, interval=0, max_total=60),
         ),

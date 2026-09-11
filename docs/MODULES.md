@@ -71,7 +71,7 @@ class RetryConfig(BaseModel):
 class AiConfig(BaseModel):
     """AI 中转配置，对应 [ai]。"""
     default_model: str = "Nano Banana 2"
-    base_url: str = "https://api.vectorengine.ai"
+    base_url: str = "https://api.relayrouter.ai"
     retry: RetryConfig = RetryConfig()
     models: dict[str, ModelConfig] = Field(default_factory=dict)
 
@@ -453,7 +453,7 @@ class AIGenerator:
 | `Nano Banana 2` | Google genai SDK | `gemini-3.1-flash-image-preview` | `/v1beta/models/...:generateContent` |
 | `GPT Image 2` | OpenAI SDK | `gpt-image-2` | `/v1/images/edits` |
 
-以上映射全部从 `config.toml [ai.model.*]` 读取，代码不硬编码。所有模型共用 `https://api.vectorengine.ai` 中转站。
+以上映射全部从 `config.toml [ai.model.*]` 读取，代码不硬编码。所有模型共用 `https://api.relayrouter.ai` 中转站。
 
 ---
 

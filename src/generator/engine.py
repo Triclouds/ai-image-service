@@ -60,15 +60,6 @@ def _map_gpt_size(resolution: str | None) -> str | None:
     return "1024x1024" if resolution == "1K" else None
 
 
-# 临时灰度：已迁移到新中转站 relayrouter 的品牌（按 table key 前缀匹配），
-# 其他品牌回落 [ai.model] 配置的老站 base_url。画朴迁移后删除本映射及判断。
-_RELAY_BRANDS = ("zhuozhi", "ahmi")
-_RELAY_BASE_URLS = {
-    "google": "https://api.relayrouter.ai",
-    "openai": "https://api.relayrouter.ai/v1",
-}
-
-
 class AIGenerator:
     """AI 生图引擎，按 provider 分派：google 走 httpx 直连，openai 走 OpenAI SDK。
 
@@ -122,11 +113,7 @@ class AIGenerator:
         async def _do_generate():
             model_cfg = self.settings.get_model(model)
             api_key = self.settings.get_api_key(table_config.image_api_key_env)
-            # 卓芝/AHMI 表走新站 relayrouter，其他品牌走 [ai.model] 配置的默认 base_url
-            brand = table_config.key.split("-", 1)[0]
             base_url = model_cfg.base_url
-            if brand in _RELAY_BRANDS:
-                base_url = _RELAY_BASE_URLS[model_cfg.provider]
             logger.info(
                 "AI 生图路由",
                 model=model,

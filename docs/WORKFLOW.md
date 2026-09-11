@@ -285,7 +285,7 @@ API_KEY=your-secret-api-key
 
 # ========== AI 生图配置（通过中转站）==========
 # 所有模型共用同一个中转站 base_url
-AI_BASE_URL=https://api.vectorengine.ai
+AI_BASE_URL=https://api.relayrouter.ai
 
 # AI 图片模型 Key（每个表格在 config.toml 中通过 image_api_key_env 指定）
 # 卓智

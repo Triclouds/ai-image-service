@@ -19,9 +19,9 @@
 - **模型 ID 由钉钉表格"视频模型"字段直接透传**到第三方 API 的 `model_name` 字段，不在服务侧维护"显示名 → API model_name"映射；钉钉表格填什么（如 `kling-v2-5-turbo` / `MiniMax-Hailuo-2.3` / `happyhorse-1.0-i2v`），就以这个原值调 API
 - 首批仅做 **图生视频 (image-to-video)**
 
-## 三家 API 速查表（来自 vectorengine.apifox.cn）
+## 三家 API 速查表（来自 doc.relayrouter.ai）
 
-所有请求统一通过 `https://api.vectorengine.ai` 中转，鉴权 `Authorization: Bearer <TOKEN>`。
+所有请求统一通过 `https://api.relayrouter.ai` 中转，鉴权 `Authorization: Bearer <TOKEN>`。
 
 | 厂商 | 提交 endpoint | 查询 endpoint | 提交响应 task_id 路径 | 查询响应 状态字段 | 视频 URL 路径 |
 |------|---------------|---------------|-----------------------|-------------------|---------------|
@@ -155,7 +155,7 @@ class VideoGenerator:
 - 终态：`succeed/Success/SUCCEEDED` → 取 URL；`failed/Fail/FAILED` → 抛错
 - 提交、轮询、下载视频都走 `_retry_on_network_error`（复用模式，可抽到 `src/utils/retry.py` 单独工具）
 
-**三家 provider 实现要点**（细节由 vectorengine 文档驱动，路径已在速查表给出）：
+**三家 provider 实现要点**（细节由 relayrouter 文档驱动，路径已在速查表给出）：
 - `_submit_kling` → POST + JSON body，提取 `data.task_id`
 - `_poll_kling` → GET `/kling/v1/videos/image2video/{task_id}`，状态 `succeed` 时返回 `data.task_result.videos[0].url`
 - `_submit_hailuo` → POST，提取顶层 `task_id`
@@ -228,13 +228,13 @@ interval = 5
 max_total = 600
 
 [ai.video_provider."kling"]
-base_url = "https://api.vectorengine.ai"
+base_url = "https://api.relayrouter.ai"
 
 [ai.video_provider."hailuo"]
-base_url = "https://api.vectorengine.ai"
+base_url = "https://api.relayrouter.ai"
 
 [ai.video_provider."wanxiang"]
-base_url = "https://api.vectorengine.ai"
+base_url = "https://api.relayrouter.ai"
 
 # 视频表 — 三个品牌
 [[dingtalk.video_tables]]
