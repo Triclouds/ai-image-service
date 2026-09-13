@@ -14,6 +14,7 @@ from loguru import logger
 from config import Settings, TableConfig
 from dingtalk.client import DingTalkClient
 from generator import AIGenerator
+from utils.exceptions import describe_exc
 from models.prompt_config import (
     _FALLBACK_SUFFIX_START,
     _extract_pert_number,
@@ -99,13 +100,14 @@ class GenerationService:
         image_bytes: bytes,
         record_id: str,
         table_key: str,
-    ) -> None:
+    ) -> Path | None:
         """将图片写入 ./images/{date}/{table_key}/{record_id}/{tag}_{ts}.png。
 
-        落盘失败不抛异常，仅 log warning。
+        落盘失败不抛异常，仅 log warning；debug 未启用时直接返回 None。
+        返回写入的文件路径，便于"AI 成功但上传失败"时回写留底路径。
         """
         if not self.settings.debug.image_dump_enabled:
-            return
+            return None
         try:
             date_str = datetime.now().strftime("%Y-%m-%d")
             ts = int(time.time() * 1000)
@@ -113,11 +115,13 @@ class GenerationService:
             dir_path.mkdir(parents=True, exist_ok=True)
             filepath = dir_path / f"{tag}_{ts}.png"
             filepath.write_bytes(image_bytes)
+            return filepath
         except Exception:
             logger.warning(
                 "图片落盘失败 record_id={} table_key={} tag={}",
                 record_id, table_key, tag,
             )
+            return None
 
     async def process(self, record_id: str, table_key: str | None = None) -> None:
         """根据 batch_mode 分流到单图或批量生图流程。"""
@@ -138,7 +142,9 @@ class GenerationService:
                     step = "批量生图"
                     await self._process_batch(record_id, table_config)
                 else:
-                    step = "单图生图"
+                    # 搭配生图走 _process_single 分流，标签要区分开，
+                    # 否则失败信息里一律显示"单图生图"，看不出是哪个模块挂的
+                    step = "搭配生图" if table_config.gen_match_mode else "单图生图"
                     await self._process_single(record_id, table_config)
 
             except asyncio.CancelledError:
@@ -149,12 +155,19 @@ class GenerationService:
                 tb = traceback.format_exc()
                 logger.error(f"生图流程异常 record_id={record_id} step={step}\n{tb}")
                 if table_config is not None:
-                    await self._update_failure(table_config, record_id, f"[{step}] {e}")
+                    await self._update_failure(
+                        table_config, record_id, f"[{step}] {describe_exc(e)}"
+                    )
 
     async def _process_single(
         self, record_id: str, table_config: TableConfig
     ) -> None:
         """单图生图流程（既有逻辑）。"""
+        # 0. 分流：搭配生图（仅 zhuozhi-genMatch 启用；多参考图输入，单图输出）
+        if table_config.gen_match_mode:
+            await self._process_gen_match(record_id, table_config)
+            return
+
         step_start = time.monotonic()
 
         # 1. 获取记录数据
@@ -244,6 +257,168 @@ class GenerationService:
             },
         )
         logger.info("生图流程完成", record_id=record_id, elapsed=self._elapsed(step_start))
+
+    async def _process_gen_match(
+        self, record_id: str, table_config: TableConfig
+    ) -> None:
+        """搭配生图：多参考图输入 → 单图输出。
+
+        输入：
+        - 【模特图】(model_image_field)：1 张参考图，作为"图1"
+        - 【素材图】(reference_image_field)：≥1 张参考图，作为"图2/图3/..."
+          （第一张=图2，第二张=图3，依此类推）
+        - 【提示词】：单段文本，prompt 内文通过"图1""图2"等表述引用对应图片
+        - 【比例】【分辨率】：与 promptAD 一致（白名单校验）
+
+        前置条件：table_config.gen_match_mode=true 且启动时校验通过
+        （model_image_field / aspect_ratio_field 均已配置）。
+
+        流程：
+        1. 取记录
+        2. 校验【比例】字段（空值/非法 → 写失败退出）
+        3. 下载【模特图】1 张（图1）
+        4. 下载【素材图】≥1 张（图2/图3/...）
+        5. 校验【提示词】非空
+        6. 调用 generator.generate()，reference_image 传有序 list[bytes]
+        7. 上传 1 张结果图，文件名 generated_<record_id>.png
+        8. 回写：状态=成功，附件=1 张，时间戳
+        """
+        step_start = time.monotonic()
+
+        # 1. 取记录
+        step = "获取记录数据"
+        record = await self.dingtalk.get_record(table_config, record_id)
+        fields = record.get("fields", {})
+
+        # 2. 校验【比例】字段（空值/非法都立即失败退出）
+        try:
+            aspect_ratio_value = _validate_aspect_ratio(
+                fields.get(table_config.aspect_ratio_field)
+            )
+        except AspectRatioError as e:
+            logger.warning("比例字段校验失败", record_id=record_id, error=str(e))
+            await self._update_failure(table_config, record_id, str(e))
+            return
+
+        # 3. 下载【模特图】(图1，必须有)
+        step = "下载模特图"
+        model_image_data = fields.get(table_config.model_image_field)
+        if not isinstance(model_image_data, list) or not model_image_data:
+            await self._update_failure(table_config, record_id, "模特图不能为空")
+            return
+        model_image_bytes_list = await self._download_reference_images(model_image_data)
+        if not model_image_bytes_list:
+            await self._update_failure(table_config, record_id, "模特图 url 为空")
+            return
+        # 只取第一张作为图1
+        model_image_bytes = model_image_bytes_list[0]
+        for b in model_image_bytes_list[1:]:
+            self._dump_image("model_extra", b, record_id, table_config.key)
+        self._dump_image("model", model_image_bytes, record_id, table_config.key)
+
+        # 4. 下载【素材图】(图2/图3/...，至少 1 张)
+        step = "下载素材图"
+        ref_image_data = fields.get(table_config.reference_image_field)
+        if not isinstance(ref_image_data, list) or not ref_image_data:
+            await self._update_failure(table_config, record_id, "素材图不能为空")
+            return
+        ref_image_bytes_list = await self._download_reference_images(ref_image_data)
+        if not ref_image_bytes_list:
+            await self._update_failure(table_config, record_id, "素材图 url 为空")
+            return
+        for b in ref_image_bytes_list:
+            self._dump_image("ref", b, record_id, table_config.key)
+
+        # 5. 校验【提示词】
+        step = "校验提示词"
+        prompt = fields.get(table_config.prompt_field)
+        if not prompt:
+            await self._update_failure(table_config, record_id, "提示词不能为空")
+            return
+
+        # 6. 解析模型 + 读取分辨率
+        step = "解析模型与分辨率"
+        model = self._resolve_model(fields, table_config, self.settings.ai.default_model)
+        resolution_value: str | None = (
+            _to_text(fields.get(table_config.resolution_field)) or None
+        )
+
+        # 7. 构造有序参考图列表：[模特图(图1), 素材图[0](图2), 素材图[1](图3), ...]
+        ordered_refs: list[bytes] = [model_image_bytes] + ref_image_bytes_list
+
+        logger.info(
+            "本次搭配生图配置",
+            record_id=record_id,
+            model_image_count=1,
+            ref_image_count=len(ref_image_bytes_list),
+            total_refs=len(ordered_refs),
+            aspect_ratio=aspect_ratio_value,
+            resolution=resolution_value or "",
+        )
+
+        # 8. 调用 AI 生图（多参考图输入，单图输出）
+        step = "AI 生图"
+        result_bytes = await self.generator.generate(
+            model=model,
+            prompt=prompt,
+            reference_image=ordered_refs,
+            table_config=table_config,
+            aspect_ratio=aspect_ratio_value,
+            resolution=resolution_value,
+        )
+        logger.info(
+            "AI 生图完成",
+            record_id=record_id,
+            size=len(result_bytes),
+            elapsed=self._elapsed(step_start),
+        )
+        self._dump_image("gen", result_bytes, record_id, table_config.key)
+        step_start = time.monotonic()
+
+        # 9. 上传 1 张结果图
+        step = "上传结果"
+        try:
+            attachment_info = await self.dingtalk.upload_attachment(
+                table_config,
+                result_bytes,
+                f"generated_{record_id}.png",
+            )
+        except Exception as upload_err:
+            # AI 生图已成功（result_bytes 有效），只是上传这一步挂了。
+            # 把图存盘留底，表里写"AI 成功/上传失败"，便于人工捞回，
+            # 避免和"AI 没跑成功"的状态混淆。
+            dump_path = self._dump_image(
+                "upload_failed", result_bytes, record_id, table_config.key
+            )
+            logger.error(
+                "AI 生图成功但上传失败",
+                record_id=record_id,
+                size=len(result_bytes),
+                dumped=str(dump_path),
+                error=describe_exc(upload_err),
+            )
+            await self._update_failure(
+                table_config,
+                record_id,
+                f"OSS 上传失败: {describe_exc(upload_err)}"
+                f"（AI 已生图 {len(result_bytes)} bytes，已留底到 {dump_path}）",
+            )
+            return
+        logger.info("上传成功", record_id=record_id, elapsed=self._elapsed(step_start))
+        step_start = time.monotonic()
+
+        # 10. 回写
+        step = "回写"
+        await self.dingtalk.update_record(
+            table_config,
+            record_id,
+            {
+                table_config.result_image_field: [attachment_info],
+                table_config.result_status_field: "成功",
+                table_config.result_time_field: datetime.now().strftime("%Y-%m-%d %H:%M"),
+            },
+        )
+        logger.info("搭配生图完成", record_id=record_id, elapsed=self._elapsed(step_start))
 
     async def _process_batch(
         self, record_id: str, table_config: TableConfig
@@ -380,7 +555,7 @@ class GenerationService:
                 )
                 attachments.append(att)
             except Exception as e:
-                upload_errors.append(f"第{i+1}张上传失败: {e}")
+                upload_errors.append(f"第{i+1}张上传失败: {describe_exc(e)}")
                 logger.error(
                     "单图上传失败", record_id=record_id, index=i+1, error=str(e),
                 )
@@ -595,7 +770,7 @@ class GenerationService:
                         success_list.append("场景图")
                         logger.info("场景图生成上传成功", record_id=record_id, goods_id=goods_id)
                     except Exception as e:
-                        failure_list.append(f"场景图: {e}")
+                        failure_list.append(f"场景图: {describe_exc(e)}")
                         logger.error("场景图生成失败", record_id=record_id, error=str(e))
 
         # 8. 回写结果
@@ -699,7 +874,7 @@ class GenerationService:
                 record_id=record_id, goods_id=goods_id,
             )
         except Exception as e:
-            failure_list.append(f"{section_name}: {e}")
+            failure_list.append(f"{section_name}: {describe_exc(e)}")
             logger.error(
                 "{}生成失败", section_name,
                 record_id=record_id, error=str(e),
@@ -875,7 +1050,7 @@ class GenerationService:
                 )
                 attachments.append(att)
             except Exception as e:
-                upload_errors.append(f"{tname}#{idx}上传失败: {e}")
+                upload_errors.append(f"{tname}#{idx}上传失败: {describe_exc(e)}")
                 logger.error(
                     "单图上传失败", record_id=record_id,
                     segment=tname, index=idx, filename=filename, error=str(e),
@@ -1050,7 +1225,7 @@ class GenerationService:
                 )
                 attachments.append(att)
             except Exception as e:
-                upload_errors.append(f"第{i+1}张上传失败: {e}")
+                upload_errors.append(f"第{i+1}张上传失败: {describe_exc(e)}")
                 logger.error(
                     "单图上传失败", record_id=record_id, index=i+1, error=str(e),
                 )

@@ -35,3 +35,21 @@ class ConfigError(AppError):
     """配置错误，启动时失败，不可恢复。"""
 
     pass
+
+
+def describe_exc(exc: BaseException) -> str:
+    """把异常渲染成人能看懂的一行字，保证非空。
+
+    直接用 str(e) 有个坑：不少网络异常（如 httpx.RemoteProtocolError()）
+    message 为空，回写到钉钉表里就成了 "失败: [单图生图] "，
+    完全看不出发生了什么。这里在 message 为空时回退到异常类名。
+
+    Examples:
+        >>> describe_exc(ValueError("提示词不能为空"))
+        'ValueError: 提示词不能为空'
+        >>> describe_exc(ValueError())
+        'ValueError'
+    """
+    message = str(exc).strip()
+    name = type(exc).__name__
+    return f"{name}: {message}" if message else name

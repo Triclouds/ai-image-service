@@ -10,8 +10,14 @@ max_concurrency = 5
 default_model = "Nano Banana 2"
 
 [ai.retry]
+# 退避序列 = initial_delay * 2^n，各带 ±25% 抖动：2s → 4s → 8s → 16s，
+# 共 5 次尝试、约 30s 覆盖。中转站的 RemoteProtocolError 是突发性的
+# （实测故障窗口约 30~45s），max_retries=1 时只有 2s 预算，必然熬不过去。
+# 注意：单次请求 read 超时是 300s，若失败形态变成"卡住超时"而非"秒断"，
+# 最坏情况会占住一个并发槽约 20 分钟（max_concurrency=5）。
+# 若观察到超时型失败变多，把 max_retries 调回 2~3。
 initial_delay = 2
-max_retries = 1
+max_retries = 4
 
 [ai.model."Nano Banana Pro"]
 base_url = "https://api.vectorengine.cn"
@@ -543,6 +549,73 @@ prompt_ad_mode = true
 
 model_field = "生图模型"
 prompt_field = "提示词"
+reference_image_field = "素材图"
+result_image_field = "生成图片"
+result_status_field = "生成结果"
+result_time_field = "生成时间"
+
+resolution_field = "分辨率"
+aspect_ratio_field = "比例"
+
+# ===== 卓芝搭配生图生图配置 =====
+# 多参考图输入（1 模特图 + N 素材图，按顺序作为图1/图2/...），
+# 单图输出。prompt 文本里通过"图1""图2"引用对应图片。
+[[dingtalk.tables]]
+key = "zhuozhi-genMatch"
+base_id = "ZgpG2NdyVX6bMqMaTGgr2nLG8MwvDqPk"
+sheet_id = "w4Xyem2"
+image_api_key_env = "ZHUOZHI_IMAGE_API_KEY"
+
+batch_mode = false                                # 单图输出
+gen_match_mode = true                              # ← 搭配生图模块开关
+
+# 字段映射（按钉钉表实际列名配置）
+model_field = "生图模型"
+prompt_field = "提示词"
+model_image_field = "模特图"                       # 单张参考图 → 图1
+reference_image_field = "素材图"                   # 1+ 张参考图 → 图2/图3/...
+result_image_field = "生成图片"
+result_status_field = "生成结果"
+result_time_field = "生成时间"
+
+# 比例 + 分辨率（与 promptAD 一致：比例必填且白名单校验；分辨率可选）
+resolution_field = "分辨率"                        # 可选值 1K / 2K / 4K，缺失/空 → None
+aspect_ratio_field = "比例"                       # 必填，空值/非法值都报错退出
+
+[[dingtalk.tables]]
+key = "ahmi-genMatch"
+base_id = "P7QG4Yx2JprmqZq3SqP3px9zW9dEq3XD"
+sheet_id = "7NqViHd"
+image_api_key_env = "AHMI_IMAGE_API_KEY"
+
+batch_mode = false
+gen_match_mode = true
+
+# 字段映射（与 zhuozhi-genMatch 完全一致：AHMI/卓芝字段名相同）
+model_field = "生图模型"
+prompt_field = "提示词"
+model_image_field = "模特图"
+reference_image_field = "素材图"
+result_image_field = "生成图片"
+result_status_field = "生成结果"
+result_time_field = "生成时间"
+
+resolution_field = "分辨率"
+aspect_ratio_field = "比例"
+
+[[dingtalk.tables]]
+key = "huapu-genMatch"
+base_id = "qnYMoO1rWxnLBYBbSzQ1KEQBJ47Z3je9"
+sheet_id = "aZUwoct"
+image_api_key_env = "HUAPU_IMAGE_API_KEY"
+
+batch_mode = false
+gen_match_mode = true
+
+# 字段映射（与 zhuozhi-genMatch 完全一致）
+model_field = "生图模型"
+prompt_field = "提示词"
+model_image_field = "模特图"
 reference_image_field = "素材图"
 result_image_field = "生成图片"
 result_status_field = "生成结果"

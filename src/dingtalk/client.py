@@ -4,6 +4,7 @@
 """
 
 import asyncio
+import random
 import time
 import traceback
 from urllib.parse import urljoin
@@ -21,6 +22,7 @@ from darabonba.policy.retry import RetryOptions, RetryCondition
 from loguru import logger
 
 from config import Settings, TableConfig
+from utils.exceptions import describe_exc
 
 
 class DingTalkClient:
@@ -108,17 +110,30 @@ class DingTalkClient:
         return headers
 
     async def _retry_on_network_error(self, func, *args, **kwargs):
-        """网络异常重试装饰器逻辑。"""
+        """网络异常重试：指数退避 + 抖动（与 AIGenerator 保持一致）。"""
         max_retries = self.settings.ai.retry.max_retries
         initial_delay = self.settings.ai.retry.initial_delay
         last_error = None
         for attempt in range(max_retries + 1):
             try:
                 return await func(*args, **kwargs)
-            except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
+            except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError) as e:
                 last_error = e
                 if attempt < max_retries:
-                    await asyncio.sleep(initial_delay)
+                    delay = initial_delay * (2**attempt) * random.uniform(0.75, 1.25)
+                    logger.opt(exception=True).warning(
+                        "钉钉网络异常，退避后重试",
+                        attempt=f"{attempt + 1}/{max_retries + 1}",
+                        delay=f"{delay:.1f}s",
+                        error=describe_exc(e),
+                    )
+                    await asyncio.sleep(delay)
+                else:
+                    logger.opt(exception=True).error(
+                        "钉钉网络异常重试耗尽",
+                        attempts=max_retries + 1,
+                        error=describe_exc(e),
+                    )
         # last_error 一定不为 None，循环只有抛出异常时才会到此处
         assert last_error is not None
         raise last_error
