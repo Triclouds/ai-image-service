@@ -574,6 +574,7 @@ result_time_field = "生成时间"
 
 # 分辨率（可选值 1K / 2K / 4K，缺失/空 → None）
 resolution_field = "分辨率"
+aspect_ratio_field = "比例"
 
 [[dingtalk.tables]]
 key = "ahmi-genMatch"
@@ -594,6 +595,7 @@ result_status_field = "生成结果"
 result_time_field = "生成时间"
 
 resolution_field = "分辨率"
+aspect_ratio_field = "比例"
 
 [[dingtalk.tables]]
 key = "huapu-genMatch"
@@ -614,3 +616,4 @@ result_status_field = "生成结果"
 result_time_field = "生成时间"
 
 resolution_field = "分辨率"
+aspect_ratio_field = "比例"

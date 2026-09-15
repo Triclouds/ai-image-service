@@ -267,6 +267,7 @@ class GenerationService:
         - 【素材图】(reference_image_field)：≥1 张参考图，作为"图2/图3/..."
           （第一张=图2，第二张=图3，依此类推）
         - 【提示词】：单段文本，prompt 内文通过"图1""图2"等表述引用对应图片
+        - 【比例】【分辨率】（可选）：缺省/空走 AI 默认，无校验
 
         前置条件：table_config.gen_match_mode=true 且启动时校验通过
         （model_image_field 已配置）。
@@ -276,10 +277,11 @@ class GenerationService:
         2. 下载【模特图】1 张（图1）
         3. 下载【素材图】≥1 张（图2/图3/...）
         4. 校验【提示词】非空
-        5. 调用 generator.generate()，reference_image 传有序 list[bytes]
-           （aspect_ratio / resolution 不传，与生图模块共用默认）
-        6. 上传 1 张结果图，文件名 generated_<record_id>.png
-        7. 回写：状态=成功，附件=1 张，时间戳
+        5. 解析模型 + 读取「比例」「分辨率」（缺省/空 → None）
+        6. 调用 generator.generate()，reference_image 传有序 list[bytes]
+           并透传 aspect_ratio / resolution
+        7. 上传 1 张结果图，文件名 generated_<record_id>.png
+        8. 回写：状态=成功，附件=1 张，时间戳
         """
         step_start = time.monotonic()
 
@@ -328,6 +330,14 @@ class GenerationService:
         step = "解析模型"
         model = self._resolve_model(fields, table_config, self.settings.ai.default_model)
 
+        # 5.5 读取「比例」「分辨率」字段（缺省/空 → None，走 AI 默认）
+        aspect_ratio_value: str | None = (
+            _to_text(fields.get(table_config.aspect_ratio_field)) or None
+        ) if table_config.aspect_ratio_field else None
+        resolution_value: str | None = (
+            _to_text(fields.get(table_config.resolution_field)) or None
+        ) if table_config.resolution_field else None
+
         # 6. 构造有序参考图列表：[模特图(图1), 素材图[0](图2), 素材图[1](图3), ...]
         ordered_refs: list[bytes] = [model_image_bytes] + ref_image_bytes_list
 
@@ -337,6 +347,8 @@ class GenerationService:
             model_image_count=1,
             ref_image_count=len(ref_image_bytes_list),
             total_refs=len(ordered_refs),
+            aspect_ratio=aspect_ratio_value or "",
+            resolution=resolution_value or "",
         )
 
         # 7. 调用 AI 生图（多参考图输入，单图输出）
@@ -346,6 +358,8 @@ class GenerationService:
             prompt=prompt,
             reference_image=ordered_refs,
             table_config=table_config,
+            aspect_ratio=aspect_ratio_value,
+            resolution=resolution_value,
         )
         logger.info(
             "AI 生图完成",
