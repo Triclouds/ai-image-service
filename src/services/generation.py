@@ -459,8 +459,13 @@ class GenerationService:
                 f"提示词表未找到 任务名称={task_name}",
             )
             return
+        prompt_fields = (
+            prompt_records[0].fields
+            if hasattr(prompt_records[0], "fields")
+            else prompt_records[0].get("fields", {})
+        )
         prompt_cfg = PromptConfig.from_prompt_record(
-            prompt_records[0].fields or {}, table_config.prompt_table
+            prompt_fields or {}, table_config.prompt_table
         )
         if not prompt_cfg.prompt:
             await self._update_failure(

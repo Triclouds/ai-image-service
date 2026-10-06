@@ -3,10 +3,11 @@
 使用方法:
 1. 确保 API 服务已启动 (uvicorn src.main:app --reload)
 2. 修改脚本中的 API_KEY 和参数
-3. 运行: python tests/test_api_local.py
+3. 运行: python tests/manual_api_local.py
 """
 
 import asyncio
+import os
 from pathlib import Path
 
 import httpx

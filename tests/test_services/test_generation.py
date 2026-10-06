@@ -84,7 +84,7 @@ async def test_process_success(service, mock_dingtalk, mock_generator):
     mock_generator.generate.assert_awaited_once_with(
         model="Nano Banana Pro",
         prompt="a cute cat",
-        reference_image=b"fake_image_bytes",
+        reference_image=[b"fake_image_bytes"],
         table_config=mock_dingtalk.get_record.call_args[0][0],
     )
     mock_dingtalk.upload_attachment.assert_awaited_once()
@@ -220,7 +220,7 @@ async def test_process_with_default_model(service, mock_dingtalk, mock_generator
     mock_generator.generate.assert_awaited_once_with(
         model="Nano Banana 2",
         prompt="a cat",
-        reference_image=b"fake_image_bytes",
+        reference_image=[b"fake_image_bytes"],
         table_config=mock_dingtalk.get_record.call_args[0][0],
     )
 
@@ -272,7 +272,7 @@ async def test_batch_full_success(batch_settings, mock_dingtalk, mock_generator)
     call_kwargs = mock_generator.generate_batch.call_args
     assert len(call_kwargs.kwargs["prompts"]) == 3
     assert call_kwargs.kwargs["model"] == "Nano Banana Pro"
-    assert call_kwargs.kwargs["reference_image"] == b"ref_bytes"
+    assert call_kwargs.kwargs["reference_image"] == [b"ref_bytes"]
 
     # upload × 3
     assert mock_dingtalk.upload_attachment.await_count == 3
