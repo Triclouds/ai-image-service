@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import httpx
 import pytest
+from loguru import logger
 
 from config import AiConfig, DingtalkConfig, RetryConfig, ServerConfig, Settings, TableConfig
 from dingtalk.client import DingTalkClient
@@ -65,27 +66,27 @@ def _mock_http(token_response: dict | None = None):
 @pytest.mark.asyncio
 async def test_token_caching(client):
     """access_token 应缓存，过期前 5 分钟才刷新。"""
-    mock_class, mock_client, _ = _mock_http()
+    token_response = MagicMock()
+    token_response.body.access_token = "token_123"
+    token_response.body.expire_in = 7200
+    client._oauth2_client.get_access_token_async = AsyncMock(return_value=token_response)
 
-    with patch("httpx.AsyncClient", mock_class):
-        token1 = await client._get_access_token()
-        assert token1 == "token_123"
+    token1 = await client._get_access_token()
+    assert token1 == "token_123"
 
-        token2 = await client._get_access_token()
-        assert token2 == "token_123"
+    token2 = await client._get_access_token()
+    assert token2 == "token_123"
 
-        # post 只应被调用一次（第二次走缓存）
-        assert mock_client.post.call_count == 1
+    # SDK 只应被调用一次（第二次走缓存）
+    assert client._oauth2_client.get_access_token_async.await_count == 1
 
 
 @pytest.mark.asyncio
 async def test_get_record_calls_sdk(client, table_config):
     """get_record 应调用钉钉 SDK。"""
-    mock_class, _, _ = _mock_http()
-
-    with patch("httpx.AsyncClient", mock_class):
+    with _patch_token_response():
         mock_sdk_response = MagicMock()
-        mock_sdk_response.body.to_dict.return_value = {"id": "rec_001"}
+        mock_sdk_response.body.to_map.return_value = {"id": "rec_001"}
         client._client.get_record_with_options_async = AsyncMock(return_value=mock_sdk_response)
 
         record = await client.get_record(table_config, "rec_001")
@@ -99,7 +100,7 @@ async def test_download_file(client):
     mock_class, mock_client, mock_response = _mock_http()
     mock_response.content = b"fake_image_data"
 
-    with patch("httpx.AsyncClient", mock_class):
+    with _patch_token_response(), patch("httpx.AsyncClient", mock_class):
         data = await client.download_file("/test/file.jpg")
         assert data == b"fake_image_data"
         mock_client.get.assert_called_once()
@@ -122,7 +123,7 @@ async def test_upload_attachment(client, table_config):
         return_value=mock_response
     )
 
-    with patch("httpx.AsyncClient", mock_class):
+    with _patch_token_response(), patch("httpx.AsyncClient", mock_class):
         result = await client.upload_attachment(table_config, b"image_bytes", "test.png")
 
         assert result["resourceId"] == "res_001"
@@ -138,13 +139,11 @@ async def test_upload_attachment(client, table_config):
 @pytest.mark.asyncio
 async def test_retry_on_network_error(client, table_config):
     """网络异常应重试。"""
-    mock_class, _, _ = _mock_http()
+    client._client.get_record_with_options_async = AsyncMock(
+        side_effect=httpx.TimeoutException("timeout")
+    )
 
-    with patch("httpx.AsyncClient", mock_class):
-        client._client.get_record_with_options_async = AsyncMock(
-            side_effect=httpx.TimeoutException("timeout")
-        )
-
+    with _patch_token_response():
         with pytest.raises(httpx.TimeoutException):
             await client.get_record(table_config, "rec_001")
 
@@ -266,9 +265,43 @@ async def test_list_records_request_filter_format(client):
     request = call.kwargs["request"]
     assert request.operator_id == client.operator_id
     assert request.max_results == 50
-    assert request.filter["combination"] == "and"
-    cond = request.filter["conditions"][0]
-    assert cond["field"] == "任务名称"
-    assert cond["operator"] == "equal"
-    assert cond["value"] == ["动作图-A"]
+    assert request.filter.combination == "and"
+    cond = request.filter.conditions[0]
+    assert cond.field == "任务名称"
+    assert cond.operator == "equal"
+    assert cond.value == ["动作图-A"]
 
+
+
+# ─────────── _retry_on_network_error（网络异常重试日志）───────────
+
+
+@pytest.mark.asyncio
+async def test_retry_on_network_error_logs_warning(client, log_records):
+    """网络异常重试时打 WARNING 日志（含 func / attempt / error / request_id）。
+
+    重试日志必须延续请求链路的 request_id（重试属于同一请求的后续链路）。
+    """
+    calls = {"n": 0}
+
+    async def _flaky():
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise httpx.ConnectError("连接失败")
+        return {"ok": True}
+
+    with logger.contextualize(request_id="REQ_TEST"):
+        result = await client._retry_on_network_error(_flaky)
+
+    assert result == {"ok": True}
+    assert calls["n"] == 2
+
+    warnings = [r for r in log_records if r["level"].name == "WARNING"]
+    assert len(warnings) == 1
+    rec = warnings[0]
+    assert "钉钉请求网络异常" in rec["message"]
+    assert "重试" in rec["message"]
+    assert rec["extra"]["func"] == "_flaky"
+    assert rec["extra"]["attempt"] == 1
+    assert "连接失败" in rec["extra"]["error"]
+    assert rec["extra"]["request_id"] == "REQ_TEST"

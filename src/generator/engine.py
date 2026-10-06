@@ -84,6 +84,12 @@ class AIGenerator:
             except _NETWORK_RETRY_ERRORS as e:
                 last_error = e
                 if attempt < max_retries:
+                    logger.warning(
+                        f"AI 生图请求网络异常，{initial_delay}s后重试",
+                        func=getattr(func, "__name__", str(func)),
+                        attempt=attempt + 1,
+                        error=str(e),
+                    )
                     await asyncio.sleep(initial_delay)
         raise last_error
 
