@@ -197,6 +197,7 @@ sheet_id = "W5yeTru"
 image_api_key_env = "HUAPU_IMAGE_API_KEY"
 batch_mode = true
 task_name = "动作图"
+task_name_field = "提示词"   # 生图表单选字段：选中值即提示词表"任务名称"，空值回退 task_name
 prompt_table_sheet_id = "Jl6FfSR"
 
 # 字段映射
@@ -223,6 +224,7 @@ sheet_id = "Z5ZgnFb"
 image_api_key_env = "ZHUOZHI_IMAGE_API_KEY"
 batch_mode = true
 task_name = "动作图"
+task_name_field = "提示词"   # 生图表单选字段：选中值即提示词表"任务名称"，空值回退 task_name
 prompt_table_sheet_id = "42YsOaT"
 
 # 字段映射
@@ -249,6 +251,7 @@ sheet_id = "6ekHgxC"
 image_api_key_env = "AHMI_IMAGE_API_KEY"
 batch_mode = true
 task_name = "动作图"
+task_name_field = "提示词"   # 生图表单选字段：选中值即提示词表"任务名称"，空值回退 task_name
 prompt_table_sheet_id = "jzFYB7x"
 
 # 字段映射
