@@ -84,7 +84,7 @@ async def test_process_success(service, mock_dingtalk, mock_generator):
     mock_generator.generate.assert_awaited_once_with(
         model="Nano Banana Pro",
         prompt="a cute cat",
-        reference_image=b"fake_image_bytes",
+        reference_image=[b"fake_image_bytes"],
         table_config=mock_dingtalk.get_record.call_args[0][0],
     )
     mock_dingtalk.upload_attachment.assert_awaited_once()
@@ -220,7 +220,7 @@ async def test_process_with_default_model(service, mock_dingtalk, mock_generator
     mock_generator.generate.assert_awaited_once_with(
         model="Nano Banana 2",
         prompt="a cat",
-        reference_image=b"fake_image_bytes",
+        reference_image=[b"fake_image_bytes"],
         table_config=mock_dingtalk.get_record.call_args[0][0],
     )
 
@@ -272,7 +272,7 @@ async def test_batch_full_success(batch_settings, mock_dingtalk, mock_generator)
     call_kwargs = mock_generator.generate_batch.call_args
     assert len(call_kwargs.kwargs["prompts"]) == 3
     assert call_kwargs.kwargs["model"] == "Nano Banana Pro"
-    assert call_kwargs.kwargs["reference_image"] == b"ref_bytes"
+    assert call_kwargs.kwargs["reference_image"] == [b"ref_bytes"]
 
     # upload × 3
     assert mock_dingtalk.upload_attachment.await_count == 3
@@ -443,6 +443,57 @@ async def test_batch_task_name_from_config_not_fields(
     await service.process(record_id="recB_008", table_key="batch-test")
 
     # 验证传给 list_records 的 value == 配置里的 task_name，不是 fields 里的
+    call_kwargs = mock_dingtalk.list_records.call_args.kwargs
+    assert call_kwargs["value"] == "动作图-A"
+    assert call_kwargs["field"] == "任务名称"
+
+
+@pytest.mark.asyncio
+async def test_batch_task_name_from_fields_when_configured(
+    batch_settings, mock_dingtalk, mock_generator
+):
+    """配置 task_name_field 时，记录单选值优先作为 task_name 查提示词表。"""
+    batch_settings.dingtalk.tables[-1].task_name_field = "提示词"
+    mock_dingtalk.get_record.return_value = {
+        "id": "recB_010",
+        "fields": {
+            "模特标准图": [{"url": "/file/ref.jpg"}],
+            "生图模型": {"name": "Nano Banana 2"},
+            # 钉钉单选返回 dict 形态 {"name": ...}
+            "提示词": {"name": "动作图（天猫）"},
+        },
+    }
+    mock_dingtalk.list_records.return_value = []
+    mock_dingtalk.download_file.return_value = b"ref"
+
+    service = _make_batch_service(batch_settings, mock_dingtalk, mock_generator)
+    await service.process(record_id="recB_010", table_key="batch-test")
+
+    call_kwargs = mock_dingtalk.list_records.call_args.kwargs
+    assert call_kwargs["value"] == "动作图（天猫）"
+    assert call_kwargs["field"] == "任务名称"
+
+
+@pytest.mark.asyncio
+async def test_batch_task_name_fallback_when_field_missing(
+    batch_settings, mock_dingtalk, mock_generator
+):
+    """配置了 task_name_field 但记录未填（字段缺失）→ 回退配置默认 task_name。"""
+    batch_settings.dingtalk.tables[-1].task_name_field = "提示词"
+    mock_dingtalk.get_record.return_value = {
+        "id": "recB_011",
+        "fields": {
+            "模特标准图": [{"url": "/file/ref.jpg"}],
+            "生图模型": {"name": "Nano Banana 2"},
+            # 无"提示词"字段 → fields.get 返回 None → 回退配置值
+        },
+    }
+    mock_dingtalk.list_records.return_value = []
+    mock_dingtalk.download_file.return_value = b"ref"
+
+    service = _make_batch_service(batch_settings, mock_dingtalk, mock_generator)
+    await service.process(record_id="recB_011", table_key="batch-test")
+
     call_kwargs = mock_dingtalk.list_records.call_args.kwargs
     assert call_kwargs["value"] == "动作图-A"
     assert call_kwargs["field"] == "任务名称"

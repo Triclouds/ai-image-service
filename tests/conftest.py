@@ -3,6 +3,7 @@
 from unittest.mock import patch
 
 import pytest
+from loguru import logger
 
 from config import (
     AiConfig,
@@ -17,6 +18,22 @@ from config import (
     VideoTableConfig,
 )
 from main import create_app
+
+
+@pytest.fixture
+def log_records():
+    """捕获 loguru 日志记录，供断言 level / message / extra。
+
+    sink 收到的是格式化消息对象，其 .record 属性含 level、message、extra 等原始字段。
+    """
+    records = []
+
+    def _sink(message):
+        records.append(message.record)
+
+    sink_id = logger.add(_sink, level="INFO")
+    yield records
+    logger.remove(sink_id)
 
 
 @pytest.fixture

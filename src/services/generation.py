@@ -427,9 +427,14 @@ class GenerationService:
         record = await self.dingtalk.get_record(table_config, record_id)
         fields = record.get("fields", {})
 
-        # 2. task_name 从配置读（不是从 fields 读）
+        # 2. task_name：记录单选字段（task_name_field）选中值优先，
+        #    空值 / 字段不存在时回退配置默认值，保证存量记录行为不变
         step = "读取 task_name"
         task_name = table_config.task_name
+        if table_config.task_name_field:
+            selected = _to_text(fields.get(table_config.task_name_field)).strip()
+            if selected:
+                task_name = selected
         logger.info("批量生图配置", record_id=record_id, task_name=task_name)
 
         # 3. 校验 + 下载素材图
@@ -459,8 +464,13 @@ class GenerationService:
                 f"提示词表未找到 任务名称={task_name}",
             )
             return
+        prompt_fields = (
+            prompt_records[0].fields
+            if hasattr(prompt_records[0], "fields")
+            else prompt_records[0].get("fields", {})
+        )
         prompt_cfg = PromptConfig.from_prompt_record(
-            prompt_records[0].fields or {}, table_config.prompt_table
+            prompt_fields or {}, table_config.prompt_table
         )
         if not prompt_cfg.prompt:
             await self._update_failure(

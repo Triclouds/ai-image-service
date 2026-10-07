@@ -118,6 +118,12 @@ class DingTalkClient:
             except (httpx.ConnectError, httpx.TimeoutException, httpx.NetworkError) as e:
                 last_error = e
                 if attempt < max_retries:
+                    logger.warning(
+                        f"钉钉请求网络异常，{initial_delay}s后重试",
+                        func=getattr(func, "__name__", str(func)),
+                        attempt=attempt + 1,
+                        error=str(e),
+                    )
                     await asyncio.sleep(initial_delay)
         # last_error 一定不为 None，循环只有抛出异常时才会到此处
         assert last_error is not None

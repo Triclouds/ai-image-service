@@ -48,7 +48,8 @@ class TableConfig(BaseModel):
     batch_mode: bool = False
 
     # 批量模式必填字段
-    task_name: str | None = None               # 该 sheet 对应的任务名称（从配置读）
+    task_name: str | None = None               # 该 sheet 对应的默认任务名称（从配置读）
+    task_name_field: str | None = None         # 生图表中选择提示词方案的单选字段名；选中值即提示词表"任务名称"
     prompt_table_sheet_id: str | None = None   # 提示词表 sheet_id
     prompt_table: PromptTableConfig | None = None
 

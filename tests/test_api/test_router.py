@@ -15,13 +15,13 @@ async def test_health_check(client):
 
 @pytest.mark.asyncio
 async def test_generate_success(client):
-    """正常触发生图 — 202 Accepted。"""
+    """正常触发生图 — 200 任务已接收。"""
     response = await client.post(
         "/api/v1/generate",
         json={"record_id": "rec_001"},
         headers={"Authorization": "Bearer test_api_key"},
     )
-    assert response.status_code == 202
+    assert response.status_code == 200
     data = response.json()
     assert data["status"] == "accepted"
     assert data["record_id"] == "rec_001"
@@ -36,7 +36,7 @@ async def test_generate_with_table_key(client):
         json={"record_id": "rec_001", "table_key": "clothing"},
         headers={"Authorization": "Bearer test_api_key"},
     )
-    assert response.status_code == 202
+    assert response.status_code == 200
 
 
 @pytest.mark.asyncio
