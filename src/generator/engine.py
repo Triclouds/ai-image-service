@@ -31,6 +31,7 @@ from openai import AsyncOpenAI
 from PIL import Image
 
 from config import Settings, TableConfig
+from utils.proxy import proxy_kwargs
 
 
 def _to_png_bytes(image_bytes: bytes) -> bytes:
@@ -262,6 +263,7 @@ class AIGenerator:
 
         async with httpx.AsyncClient(
             timeout=httpx.Timeout(300.0, connect=30.0),
+            **proxy_kwargs(self.settings),
         ) as client:
             response = await client.post(url, json=body, headers=headers)
             response.raise_for_status()
@@ -296,6 +298,10 @@ class AIGenerator:
             base_url=base_url,
             timeout=httpx.Timeout(300.0, connect=30.0),
             max_retries=0,
+            http_client=httpx.AsyncClient(
+                timeout=httpx.Timeout(300.0, connect=30.0),
+                **proxy_kwargs(self.settings),
+            ),
         )
         size = _map_gpt_size(resolution)
         imgs = _as_image_list(image)

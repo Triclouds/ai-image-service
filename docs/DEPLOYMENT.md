@@ -137,6 +137,94 @@ provider = "openai"
 
 ---
 
+## 4. 出站代理
+
+AI 中转站 `api.relayrouter.ai` 需要海外出口，国内直连会超时（curl 约 20s timeout）。
+
+代理通过环境变量 `PROXY_URL` 配置（写在 `.env`），**仅作用于 AI / 视频中转站调用**；钉钉接口保持直连（`trust_env=False`），不走代理。
+
+| 变量 | 示例 | 说明 |
+|------|------|------|
+| `PROXY_URL` | `http://127.0.0.1:7897` | 代理地址。留空 = 不强制，沿用系统/环境代理（httpx `trust_env`） |
+
+### 4.1 本地开发（Windows + Clash Verge）
+
+1. Clash Verge → 订阅 → 粘贴机场订阅链接 → 更新
+2. 选择节点（优先美/日/新机房；避开被 AI 平台风控的 IP）
+3. 保持「系统代理」开启（默认 mixed 端口 7897，HTTP/SOCKS5 同端口）
+4. 在 `.env` 写死代理，避免受系统代理开关影响：
+   ```
+   PROXY_URL=http://127.0.0.1:7897
+   ```
+5. 验证：
+   ```bash
+   curl -x http://127.0.0.1:7897 -o /dev/null -w "%{http_code}\n" https://api.relayrouter.ai/
+   ```
+   期望 `200`。
+
+> httpx 默认 `trust_env=True`，在 Windows 上会自动读取注册表里的系统代理，所以本地即使不配 `PROXY_URL` 也能走代理；显式配置只是让行为确定、且不影响钉钉直连。
+
+### 4.2 生产部署（Docker）
+
+生产是 Docker 容器（`1panel-network`，172.18.0.15），容器内没有「系统代理」概念，必须显式配置。
+
+`docker-compose.yml` 已用 `env_file: .env` 注入全部环境变量，**无需改 compose**，只需：
+
+1. 在 GitHub Secrets 新增 `PROXY_URL`（如 `http://mihomo:7890`）；不设置则为空 = 保持直连行为不变
+2. 服务器上要有可用的代理服务。推荐在同一 compose 栈里加 mihomo 边车：
+
+   ```yaml
+   services:
+     mihomo:
+       image: metacubex/mihomo:latest
+       container_name: mihomo
+       volumes:
+         - ./mihomo:/root/.config/mihomo
+       restart: unless-stopped
+       networks:
+         1panel-network:
+           ipv4_address: 172.18.0.16
+   ```
+
+   `mihomo/config.yaml`（订阅链接含 token，**不要提交到仓库**，用 Secret 注入）：
+
+   ```yaml
+   mixed-port: 7890
+   allow-lan: true
+   mode: rule
+   proxy-providers:
+     airport:
+       type: http
+       url: "<机场订阅链接>"
+       path: ./providers/airport.yaml
+       interval: 3600
+       health-check:
+         enable: true
+         url: https://www.gstatic.com/generate_204
+         interval: 300
+   proxy-groups:
+     - name: PROXY
+       type: select
+       use: [airport]
+   rules:
+     - MATCH,PROXY
+   ```
+
+3. 服务器 `.env` 中 `PROXY_URL=http://mihomo:7890`（容器内用服务名，不是 127.0.0.1）
+
+### 4.3 排错
+
+```bash
+# 容器内验证代理是否可用
+docker exec ai-image-service python -c "import httpx; print(httpx.get('https://api.relayrouter.ai/', timeout=30).status_code)"
+```
+
+- 超时 → 代理地址/节点不通，检查 mihomo 日志 `docker logs mihomo`
+- 401/403 → 代理通了，是 API Key 问题
+- 订阅过期 → 机场侧续费；`proxy-providers` 的 `interval` 会自动拉取新配置
+
+---
+
 ## 5. 日志管理
 
 ### 5.1 日志轮转配置
@@ -220,3 +308,4 @@ GET /api/v1/health
 | `AHMI_IMAGE_API_KEY` | .env | AHMI AI 图片 API Key |
 | `HUAPU_IMAGE_API_KEY` | .env | 华普 AI 图片 API Key |
 | `CONFIG_PATH` | .env | 配置文件路径，默认 `configs/config.toml` |
+| `PROXY_URL` | .env | 出站代理地址（仅 AI/视频中转站调用），留空则沿用系统/环境代理 |

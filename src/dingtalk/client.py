@@ -222,6 +222,7 @@ class DingTalkClient:
             async with httpx.AsyncClient(
                 timeout=60,
                 limits=httpx.Limits(max_connections=50, max_keepalive_connections=10),
+                trust_env=False,  # 钉钉接口在国内，保持直连，不走系统/环境代理
             ) as client:
                 await client.put(
                     upload_url,
@@ -249,6 +250,7 @@ class DingTalkClient:
             async with httpx.AsyncClient(
                 timeout=60,
                 limits=httpx.Limits(max_connections=50, max_keepalive_connections=10),
+                trust_env=False,  # 钉钉接口在国内，保持直连，不走系统/环境代理
             ) as client:
                 response = await client.get(
                     full_url,
