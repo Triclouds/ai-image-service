@@ -13,6 +13,9 @@ import logging
 logging.getLogger("httpx").setLevel(logging.DEBUG)
 
 import httpx
+from loguru import logger
+from openai import AsyncOpenAI, APIConnectionError
+from PIL import Image
 
 try:
     import aiohttp
@@ -25,10 +28,8 @@ _NETWORK_RETRY_ERRORS = (
     httpx.TimeoutException,
     httpx.NetworkError,
     httpx.RemoteProtocolError,
+    APIConnectionError,  # OpenAI SDK 连接错误也纳入重试
 ) + _AIOHTTP_NETWORK_ERRORS
-from loguru import logger
-from openai import AsyncOpenAI
-from PIL import Image
 
 from config import Settings, TableConfig
 from utils.proxy import proxy_kwargs
