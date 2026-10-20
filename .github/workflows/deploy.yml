@@ -92,6 +92,7 @@ jobs:
           ZHUOZHI_IMAGE_API_KEY=${{ secrets.ZHUOZHI_IMAGE_API_KEY }}
           HUAPU_IMAGE_API_KEY=${{ secrets.HUAPU_IMAGE_API_KEY }}
           AHMI_IMAGE_API_KEY=${{ secrets.AHMI_IMAGE_API_KEY }}
+          PROXY_URL=${{ secrets.PROXY_URL }}
           ENVEOF
           chmod 600 .env
 

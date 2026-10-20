@@ -17,6 +17,7 @@ from loguru import logger
 
 from config import Settings, VideoProviderConfig, VideoTableConfig
 from generator.engine import _to_png_bytes
+from utils.proxy import proxy_kwargs
 
 # 终态映射：不同厂商的成功 / 失败状态字符串归一（统一小写比较）
 _TERMINAL_SUCCESS = {"succeed", "success", "succeeded"}
@@ -113,7 +114,10 @@ class VideoGenerator:
         """下载生成的 mp4 视频字节。"""
 
         async def _do_download():
-            async with httpx.AsyncClient(timeout=300) as client:
+            async with httpx.AsyncClient(
+                timeout=300,
+                **proxy_kwargs(self.settings),
+            ) as client:
                 response = await client.get(video_url)
                 response.raise_for_status()
                 return response.content
@@ -149,7 +153,10 @@ class VideoGenerator:
                 "Content-Type": "application/json",
                 "Accept": "application/json",
             }
-            async with httpx.AsyncClient(timeout=60) as client:
+            async with httpx.AsyncClient(
+                timeout=60,
+                **proxy_kwargs(self.settings),
+            ) as client:
                 response = await client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
                 data = response.json()
@@ -205,7 +212,10 @@ class VideoGenerator:
                 "Content-Type": "application/json",
                 "Accept": "application/json",
             }
-            async with httpx.AsyncClient(timeout=60) as client:
+            async with httpx.AsyncClient(
+                timeout=60,
+                **proxy_kwargs(self.settings),
+            ) as client:
                 response = await client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
                 data = response.json()
@@ -264,7 +274,10 @@ class VideoGenerator:
                 "Content-Type": "application/json",
                 "Accept": "application/json",
             }
-            async with httpx.AsyncClient(timeout=60) as client:
+            async with httpx.AsyncClient(
+                timeout=60,
+                **proxy_kwargs(self.settings),
+            ) as client:
                 response = await client.post(url, json=payload, headers=headers)
                 response.raise_for_status()
                 data = response.json()
@@ -316,7 +329,7 @@ class VideoGenerator:
 
         deadline = time.monotonic() + poll.max_total
         attempt = 0
-        async with httpx.AsyncClient(timeout=60) as client:
+        async with httpx.AsyncClient(timeout=60, **proxy_kwargs(self.settings)) as client:
             while True:
                 attempt += 1
                 response = await client.get(url, headers=headers, params=params)

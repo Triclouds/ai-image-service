@@ -208,6 +208,10 @@ class Settings(BaseSettings):
     dingtalk_operator_id: str = ""
     api_key: str = ""
 
+    # 出站代理（环境变量 PROXY_URL，如 http://127.0.0.1:7897）
+    # 仅作用于 AI 中转站调用；为空 = 不强制，沿用系统/环境代理（trust_env）
+    proxy_url: str = ""
+
     # 非敏感字段（由 __init__ 从 config.toml 填充）
     server: ServerConfig = ServerConfig()
     ai: AiConfig = AiConfig()
