@@ -1,7 +1,7 @@
 # 海螺（Hailuo）视频生成 — 图生视频 API
 
-> 来源：https://doc.relayrouter.ai/
-> 中转域名：`https://api.relayrouter.ai`
+> 来源：https://doc.relayrouter.app/
+> 中转域名：`https://api.relayrouter.app`
 > Model: `MiniMax-Hailuo-2.3`（示例所用）
 
 ## 提交视频生成任务
