@@ -100,7 +100,7 @@ AIGenerator 统一入口，根据 model 路由到对应 SDK Client。
 | `Nano Banana 2` | `gemini-3.1-flash-image-preview` | google | /v1beta/models/...:generateContent |
 | `GPT Image 2` | `gpt-image-2` | openai | /v1/images/edits |
 
-所有模型共用中转站 base_url: https://api.relayrouter.ai
+所有模型共用中转站 base_url: https://api.relayrouter.app
 
 关键模块：
 - `generator/engine.py` — AIGenerator（统一入口）
@@ -165,7 +165,7 @@ AIGenerator 统一入口，根据 model 路由到对应 SDK Client。
 
 ### 7.1 业务背景
 
-在图片生成基础上新增**完全独立的视频生成能力**（独立接口、独立编排、独立 generator、独立配置）。首批接入三家厂商：快手可灵 (Kling) / 海螺 (Hailuo) / 通义万象 (Wanxiang)，均通过 `https://api.relayrouter.ai` 中转。
+在图片生成基础上新增**完全独立的视频生成能力**（独立接口、独立编排、独立 generator、独立配置）。首批接入三家厂商：快手可灵 (Kling) / 海螺 (Hailuo) / 通义万象 (Wanxiang)，均通过 `https://api.relayrouter.app` 中转。
 
 ### 7.2 已完成功能
 

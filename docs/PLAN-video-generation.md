@@ -19,9 +19,9 @@
 - **模型 ID 由钉钉表格"视频模型"字段直接透传**到第三方 API 的 `model_name` 字段，不在服务侧维护"显示名 → API model_name"映射；钉钉表格填什么（如 `kling-v2-5-turbo` / `MiniMax-Hailuo-2.3` / `happyhorse-1.0-i2v`），就以这个原值调 API
 - 首批仅做 **图生视频 (image-to-video)**
 
-## 三家 API 速查表（来自 doc.relayrouter.ai）
+## 三家 API 速查表（来自 doc.relayrouter.app）
 
-所有请求统一通过 `https://api.relayrouter.ai` 中转，鉴权 `Authorization: Bearer <TOKEN>`。
+所有请求统一通过 `https://api.relayrouter.app` 中转，鉴权 `Authorization: Bearer <TOKEN>`。
 
 | 厂商 | 提交 endpoint | 查询 endpoint | 提交响应 task_id 路径 | 查询响应 状态字段 | 视频 URL 路径 |
 |------|---------------|---------------|-----------------------|-------------------|---------------|
@@ -228,13 +228,13 @@ interval = 5
 max_total = 600
 
 [ai.video_provider."kling"]
-base_url = "https://api.relayrouter.ai"
+base_url = "https://api.relayrouter.app"
 
 [ai.video_provider."hailuo"]
-base_url = "https://api.relayrouter.ai"
+base_url = "https://api.relayrouter.app"
 
 [ai.video_provider."wanxiang"]
-base_url = "https://api.relayrouter.ai"
+base_url = "https://api.relayrouter.app"
 
 # 视频表 — 三个品牌
 [[dingtalk.video_tables]]

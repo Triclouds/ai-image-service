@@ -115,7 +115,7 @@ max_concurrency = 5
 
 [ai]
 default_model = "Nano Banana 2"
-base_url = "https://api.relayrouter.ai"
+base_url = "https://api.relayrouter.app"
 
 [ai.model."Nano Banana Pro"]
 endpoint = "/v1beta/models/gemini-3-pro-image-preview:generateContent"
@@ -139,7 +139,7 @@ provider = "openai"
 
 ## 4. 出站代理
 
-AI 中转站 `api.relayrouter.ai` 需要海外出口，国内直连会超时（curl 约 20s timeout）。
+AI 中转站 `api.relayrouter.app` 需要海外出口，国内直连会超时（curl 约 20s timeout）。
 
 代理通过环境变量 `PROXY_URL` 配置（写在 `.env`），**仅作用于 AI / 视频中转站调用**；钉钉接口保持直连（`trust_env=False`），不走代理。
 
@@ -158,7 +158,7 @@ AI 中转站 `api.relayrouter.ai` 需要海外出口，国内直连会超时（c
    ```
 5. 验证：
    ```bash
-   curl -x http://127.0.0.1:7897 -o /dev/null -w "%{http_code}\n" https://api.relayrouter.ai/
+   curl -x http://127.0.0.1:7897 -o /dev/null -w "%{http_code}\n" https://api.relayrouter.app/
    ```
    期望 `200`。
 
@@ -216,7 +216,7 @@ AI 中转站 `api.relayrouter.ai` 需要海外出口，国内直连会超时（c
 
 ```bash
 # 容器内验证代理是否可用
-docker exec ai-image-service python -c "import httpx; print(httpx.get('https://api.relayrouter.ai/', timeout=30).status_code)"
+docker exec ai-image-service python -c "import httpx; print(httpx.get('https://api.relayrouter.app/', timeout=30).status_code)"
 ```
 
 - 超时 → 代理地址/节点不通，检查 mihomo 日志 `docker logs mihomo`

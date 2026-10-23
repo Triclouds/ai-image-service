@@ -1,6 +1,6 @@
 """出站代理的统一注入点。
 
-AI 中转站（api.relayrouter.ai）需要海外出口，走 PROXY_URL 指定的代理；
+AI 中转站（api.relayrouter.app）需要海外出口，走 PROXY_URL 指定的代理；
 钉钉接口在国内，由调用方显式 trust_env=False 保持直连。
 """
 

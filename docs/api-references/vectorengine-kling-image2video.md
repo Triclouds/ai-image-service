@@ -1,7 +1,7 @@
 # Kling 快手可灵 — 图生视频 API
 
-> 来源：https://doc.relayrouter.ai/
-> 中转域名：`https://api.relayrouter.ai`
+> 来源：https://doc.relayrouter.app/
+> 中转域名：`https://api.relayrouter.app`
 
 ## 提交视频生成任务
 
